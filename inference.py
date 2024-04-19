@@ -108,9 +108,7 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
             prompt_embeds=pipeline.text_encoder(input_ids)[0]
             if pipeline.do_classifier_free_guidance:
                 prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
-            print(timestep_key)
             prompt_dict[timestep_key]=prompt_embeds
-
     # For classifier free guidance, we need to do two forward passes.
     # Here we concatenate the unconditional and text embeddings into a single batch
     # to avoid doing two forward passes
@@ -212,18 +210,16 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
                     callback(step_idx, t, latents)
 
     if not output_type == "latent":
-        image = pipeline.vae.decode(latents / pipeline.vae.config.scaling_factor, return_dict=False, generator=generator)[
-            0
-        ]
+        image = pipeline.vae.decode(latents / pipeline.vae.config.scaling_factor, return_dict=False, generator=generator)[0]
     else:
         image = latents
         has_nsfw_concept = None
 
     do_denormalize = [True] * image.shape[0]
 
-    image = pipeline.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
+    image = pipeline.image_processor.postprocess(image.detach(), output_type=output_type, do_denormalize=do_denormalize)
 
     # Offload all models
     pipeline.maybe_free_model_hooks()
 
-    return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
+    return StableDiffusionPipelineOutput(images=image,nsfw_content_detected=False)
