@@ -27,8 +27,8 @@ from gpu import print_details
 
 class PreparePipeline:
     def prepare(self,accelerator:Accelerator):
-        self.vae, self.vis,self.text_encoder,self.adapter,self.noise_scheduler=accelerator.prepare(
-            self.vae, self.vis,self.text_encoder,self.adapter,self.noise_scheduler
+        self.vae, self.vis,self.text_encoder,self.adapter,self.scheduler=accelerator.prepare(
+            self.vae, self.vis,self.text_encoder,self.adapter,self.scheduler
         )
 
 
@@ -39,8 +39,8 @@ class T5UnetPipeline(PreparePipeline):
         # Modules of T2I diffusion models
         self.vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae")
         self.vis = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet")
-        self.noise_scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler")
-        self.tokenizer = AutoTokenizer.from_pretrained("t5-large")
+        self.scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler")
+        self.tokenizer = AutoTokenizer.from_pretrained("t5-large", model_max_length=512)
         self.text_encoder = T5EncoderModel.from_pretrained("t5-large")
         checkpoint_dir=snapshot_download("shihaozhao/LaVi-Bridge")
         self.adapter = TextAdapter.from_pretrained(os.path.join(checkpoint_dir, f"t5_unet/adapter"))
@@ -67,10 +67,11 @@ class T5UnetPipeline(PreparePipeline):
                  num_inference_steps:int=30,
                  guidance_scale:float=7.5,
                  size:int=512,
-                 token_dict:dict={}
+                 token_dict:dict={},
+                 generator=None
                  )->list:
         if type(prompts)==type("string"):
-            prompts==[prompts]
+            prompts=[prompts]
         if negative_prompts!=None and type(negative_prompts)==type("string"):
             negative_prompts=[negative_prompts]
         if negative_prompts!=None and len(negative_prompts)==1:
@@ -79,40 +80,52 @@ class T5UnetPipeline(PreparePipeline):
             raise Exception(f"mismatch between negative prompts len {len(negative_prompts)} and prompts len {len(prompts)}")
         torch_device=self.vis.device
         images=[]
+        #print("type(prompts),prompts,negative_prompts",type(prompts),prompts,negative_prompts)
         with torch.no_grad():
             for k,prompt in enumerate(prompts):
-                text_ids = self.tokenizer(prompt, padding="max_length", max_length=77, return_tensors="pt", truncation=True).input_ids.to(torch_device)
+                text_ids = self.tokenizer(prompt,padding=True, return_tensors="pt", truncation=True).input_ids.to(torch_device)
                 text_embeddings = self.text_encoder(input_ids=text_ids)[0]
+                batch_size, n_tokens,dim= text_embeddings.shape
                 text_embeddings = self.adapter(text_embeddings).sample
                 if negative_prompts==None:
-                    uncond_input = self.tokenizer([""], padding="max_length", max_length=77, return_tensors="pt")
+                    uncond_input = self.tokenizer([""], padding="max_length", max_length=n_tokens, return_tensors="pt")
                 else:
-                    uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=77, return_tensors="pt")
+                    uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=n_tokens, return_tensors="pt")
                 uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(torch_device))[0]
                 uncond_embeddings =  self.adapter(uncond_embeddings).sample
                 text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
                 # Latent preparation
-                latents = torch.randn((1, self.vis.in_channels, size // 8, size // 8)).to(torch_device)
-                latents = latents * self.noise_scheduler.init_noise_sigma
+                latents = torch.randn((1, self.vis.in_channels, size // 8, size // 8), generator=generator).to(torch_device)
+                latents = latents * self.scheduler.init_noise_sigma
 
                 # Model prediction
-                self.noise_scheduler.set_timesteps(num_inference_steps)
-                for t in tqdm(self.noise_scheduler.timesteps):
+                self.scheduler.set_timesteps(num_inference_steps)
+                for t in tqdm(self.scheduler.timesteps):
                     timestep_key=t.long().detach().tolist()
                     if timestep_key in token_dict:
                         placeholder=token_dict[timestep_key]
-                        text_ids = self.tokenizer(prompt.format(placeholder), padding="max_length", max_length=77, return_tensors="pt", truncation=True).input_ids.to(torch_device)
+                        #print(prompt, placeholder)
+                        text_ids = self.tokenizer(prompt.format(placeholder), padding=True, return_tensors="pt", truncation=True).input_ids.to(torch_device)
                         text_embeddings = self.text_encoder(input_ids=text_ids)[0]
+                        batch_size, n_tokens,dim= text_embeddings.shape
+
                         text_embeddings = self.adapter(text_embeddings).sample
+
+                        if negative_prompts==None:
+                            uncond_input = self.tokenizer([""], padding="max_length", max_length=n_tokens, return_tensors="pt")
+                        else:
+                            uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=n_tokens, return_tensors="pt")
+                        uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(torch_device))[0]
+                        uncond_embeddings =  self.adapter(uncond_embeddings).sample
                         text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
                     latent_model_input = torch.cat([latents] * 2)
-                    latent_model_input = self.noise_scheduler.scale_model_input(latent_model_input, timestep=t)
+                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
                     noise_pred = self.vis(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-                    latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
+                    latents = self.scheduler.step(noise_pred, t, latents).prev_sample
 
                 # Decoding
                 latents = 1 / 0.18215 * latents
@@ -130,7 +143,7 @@ class T5TransformerPipeline(PreparePipeline):
         # Modules of T2I diffusion models
         self.vae = AutoencoderKL.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="vae")
         self.vis = Transformer2DModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="transformer")
-        self.noise_scheduler = UniPCMultistepScheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
+        self.scheduler = UniPCMultistepScheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
         self.tokenizer = AutoTokenizer.from_pretrained("t5-large")
         self.text_encoder = T5EncoderModel.from_pretrained("t5-large")
         checkpoint_dir=snapshot_download("shihaozhao/LaVi-Bridge")
@@ -158,11 +171,12 @@ class T5TransformerPipeline(PreparePipeline):
                  num_inference_steps:int=30,
                  guidance_scale:float=7.5,
                  size:int=512,
-                 token_dict:dict={}
+                 token_dict:dict={},
+                 generator=None
                  )->list:
         images=[]
         if type(prompts)==type("string"):
-            prompts==[prompts]
+            prompts=[prompts]
         if negative_prompts!=None and type(negative_prompts)==type("string"):
             negative_prompts=[negative_prompts]
         if negative_prompts!=None and len(negative_prompts)==1:
@@ -170,6 +184,7 @@ class T5TransformerPipeline(PreparePipeline):
         if negative_prompts!=None and len(negative_prompts)!=len(prompts):
             raise Exception(f"mismatch between negative prompts len {len(negative_prompts)} and prompts len {len(prompts)}")
         torch_device=self.vis.device
+        #print("type(prompts),prompts,negative_prompts",type(prompts),prompts,negative_prompts)
         with torch.no_grad():
             for k,prompt in enumerate(prompts):
                 # Text embeddings
@@ -191,14 +206,28 @@ class T5TransformerPipeline(PreparePipeline):
                 attention_mask = torch.cat([neg_prompt_attention_mask, prompt_attention_mask])
 
                 # Latent preparation
-                latents = torch.randn((1, self.vis.in_channels, size // 8, size // 8)).to(torch_device)
-                latents = latents * self.noise_scheduler.init_noise_sigma
+                latents = torch.randn((1, self.vis.in_channels, size // 8, size // 8),generator=generator).to(torch_device)
+                latents = latents * self.scheduler.init_noise_sigma
 
                 # Model prediction
-                self.noise_scheduler.set_timesteps(num_inference_steps)
-                for t in tqdm(self.noise_scheduler.timesteps):
+                self.scheduler.set_timesteps(num_inference_steps)
+                for t in tqdm(self.scheduler.timesteps):
+                    timestep_key=t.long().detach().tolist()
+                    if timestep_key in token_dict:
+                        
+                        placeholder=token_dict[timestep_key]
+                        print(prompt, placeholder)
+                        text_inputs = self.tokenizer(prompt.format(placeholder), padding="max_length", max_length=120, add_special_tokens=True, return_tensors="pt", truncation=True).to(torch_device)
+                        text_input_ids = text_inputs.input_ids
+                        prompt_attention_mask = text_inputs.attention_mask
+                        encoder_hidden_states = self.text_encoder(text_input_ids, attention_mask=prompt_attention_mask)[0]
+                        encoder_hidden_states = self.adapter(encoder_hidden_states).sample
+                        text_embeddings = torch.cat([neg_encoder_hidden_states, encoder_hidden_states])
+                        attention_mask = torch.cat([neg_prompt_attention_mask, prompt_attention_mask])
+
+
                     latent_model_input = torch.cat([latents] * 2)
-                    latent_model_input = self.noise_scheduler.scale_model_input(latent_model_input, timestep=t)
+                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
                     noise_pred = self.vis(
                         latent_model_input, 
                         encoder_hidden_states=text_embeddings,
@@ -209,7 +238,7 @@ class T5TransformerPipeline(PreparePipeline):
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
                     noise_pred = noise_pred.chunk(2, dim=1)[0]
-                    latents = self.noise_scheduler.step(noise_pred, t, latents)[0]
+                    latents = self.scheduler.step(noise_pred, t, latents)[0]
 
                 # Decoding
                 latents = 1 / 0.18215 * latents
@@ -227,7 +256,7 @@ class LlamaUnetPipeline(PreparePipeline):
         TEXT_ENCODER_REPLACE_MODULES = {"LlamaAttention"}
         self.vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae",torch_dtype=torch.float16)
         self.vis = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet",torch_dtype=torch.float16)
-        self.noise_scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=torch.float16)
+        self.scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=torch.float16)
         self.tokenizer = LlamaTokenizer.from_pretrained(llama_dir,torch_dtype=torch.float16)
         # To perform inference on a 24GB GPU memory, llama2 was converted to half precision
         self.text_encoder = LlamaForCausalLM.from_pretrained(llama_dir,torch_dtype=torch.float16)
@@ -261,7 +290,7 @@ class LlamaUnetPipeline(PreparePipeline):
                  )->list:
         images=[]
         if type(prompts)==type("string"):
-            prompts==[prompts]
+            prompts=[prompts]
         if negative_prompts!=None and type(negative_prompts)==type("string"):
             negative_prompts=[negative_prompts]
         if negative_prompts!=None and len(negative_prompts)==1:
@@ -269,6 +298,7 @@ class LlamaUnetPipeline(PreparePipeline):
         if negative_prompts!=None and len(negative_prompts)!=len(prompts):
             raise Exception(f"mismatch between negative prompts len {len(negative_prompts)} and prompts len {len(prompts)}")
         torch_device=self.vis.device
+        #print("type(prompts),prompts,negative_prompts",type(prompts),prompts,negative_prompts)
         with torch.no_grad():
             for k,prompt in enumerate(prompts):
                 # Text embeddings
@@ -286,17 +316,25 @@ class LlamaUnetPipeline(PreparePipeline):
 
                 # Latent preparation
                 latents = torch.randn((1, self.vis.in_channels, size // 8,size // 8)).to(torch_device).to(torch.float16)
-                latents = latents * self.noise_scheduler.init_noise_sigma
+                latents = latents * self.scheduler.init_noise_sigma
 
                 # Model prediction
-                self.noise_scheduler.set_timesteps(num_inference_steps)
-                for t in tqdm(self.noise_scheduler.timesteps):
+                self.scheduler.set_timesteps(num_inference_steps)
+                for t in tqdm(self.scheduler.timesteps):
+                    timestep_key=t.long().detach().tolist()
+                    if timestep_key in token_dict:
+                        placeholder=token_dict[timestep_key]
+                        text_ids = self.tokenizer(prompt.format(placeholder), padding="max_length", max_length=77, return_tensors="pt", truncation=True).input_ids.to(torch_device)
+                        text_embeddings = self.text_encoder(input_ids=text_ids, output_hidden_states=True).hidden_states[-1].to(torch.float16)
+                        text_embeddings = self.adapter(text_embeddings).sample
+                        text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+
                     latent_model_input = torch.cat([latents] * 2)
-                    latent_model_input = self.noise_scheduler.scale_model_input(latent_model_input, timestep=t)
+                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
                     noise_pred = self.vis(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-                    latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
+                    latents = self.scheduler.step(noise_pred, t, latents).prev_sample
 
                 # Decoding
                 latents = 1 / 0.18215 * latents
