@@ -36,6 +36,7 @@ parser.add_argument("--batch_size",type=int,default=1)
 parser.add_argument("--size",type=int,default=512,help="image size")
 parser.add_argument("--limit",type=int,default=5)
 parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/inversion")
+parser.add_argument("--prior", action='store_true',help="use prior like for dreambooth")
 
 
 
