@@ -7,6 +7,8 @@ from static_globals import *
 import gc
 from inference import call_vanilla_with_dict
 from random import sample
+from custom_pipelines import T5UnetPipeline
+import random
 
 def loop_vanilla(images: list,
                text_prompt_list:list,
@@ -27,6 +29,7 @@ def loop_vanilla(images: list,
     anilla normal textual inversion training
     '''
     print(f"begin training method  vanilla on device {accelerator.device}")
+    print(token_dict)
     tracker=accelerator.get_tracker("wandb")
     for i in range(num_validation_images):
         wandb.define_metric(f"vanilla_img_{i}",step_metric="custom_step")
@@ -54,13 +57,13 @@ def loop_vanilla(images: list,
     added_cond_kwargs={}
     weight_dtype=pipeline.dtype
     global_step=0
+    device=accelerator.device
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         for step,batch in enumerate(dataloader):
             batch_size=batch[IMAGES].shape[0]
             print(f"batch size {batch_size}")
-            device=accelerator.device
-            with accelerator.accumulate(unet,text_encoder):
+            with accelerator.accumulate(text_encoder):
                 latents = vae.encode(batch[IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)
                 latents = latents * vae.config.scaling_factor
 
@@ -72,15 +75,22 @@ def loop_vanilla(images: list,
                     )
                 bsz = latents.shape[0]
                 # Sample a random timestep for each image
-                timesteps = torch.randint(0, scheduler.config.num_train_timesteps, (bsz,), device=device)
+                if len(token_dict)>0:
+                    time_key_list=[k for k in token_dict.keys()]
+                    timesteps_array=random.choices(time_key_list,k=bsz)
+                    #timesteps = torch.randint(0, num_inference_steps, (latents.shape[0],), device=device)
+                    timesteps=torch.tensor(timesteps_array,device=device)
+                else: 
+                    timesteps = torch.randint(0, scheduler.config.num_train_timesteps, (latents.shape[0],), device=device)
                 timesteps = timesteps.long()
-                if timesteps in token_dict:
-                    print(timesteps.long().detach().tolist())
-                    placeholder=token_dict[timesteps.long().detach().tolist()]
+                text=sample(text_prompt_list,bsz)
+                if len(token_dict)>0:
+                    for count,time_key in enumerate(timesteps.long().detach().tolist()):
+                        text[count]=text[count].format(token_dict[time_key])
                 else:
                     placeholder=PLACEHOLDER
-                text=sample(text_prompt_list,bsz)
-                text=[t.format(placeholder) for t in text]
+                    text=[t.format(placeholder) for t in text]
+                #print('loop vanilal text',text)
                 input_ids=tokenizer(
                     text,
                     padding="max_length",
@@ -112,8 +122,10 @@ def loop_vanilla(images: list,
                 optimizer.step()
                 optimizer.zero_grad()
             if accelerator.sync_gradients:
+                params_to_clip =[p for p in text_encoder.parameters()]
+                accelerator.clip_grad_norm_(params_to_clip, 1.0)
                 global_step += 1
-                accelerator.log({f"vanilla_train_loss": train_loss})
+                accelerator.log({f"train_loss": train_loss})
                 train_loss = 0.0
         if accelerator.is_main_process:
 
@@ -126,13 +138,249 @@ def loop_vanilla(images: list,
                 added_cond_kwargs={}
                 if len(token_dict)>0:
                     img=call_vanilla_with_dict(pipeline,prompt=val_prompt,
-                                               num_inference_steps=num_inference_steps, generator=generator,safety_checker=None,token_dict=token_dict).images[0]
+                                               num_inference_steps=num_inference_steps, 
+                                               generator=generator,safety_checker=None,token_dict=token_dict,
+                                               #timesteps=[k for k in token_dict.keys()]
+                                               ).images[0]
                 else:
                     val_prompt=val_prompt.format(PLACEHOLDER)
                     img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
                 img.save(path)
                 tracker.log({f"vanilla_img_{i}": wandb.Image(path)})
-    accelerator.free_memory()
-    torch.cuda.empty_cache()
-    gc.collect()
+        accelerator.free_memory()
+        torch.cuda.empty_cache()
+        gc.collect()
     return pipeline
+
+def loop_general(images: list,
+               text_prompt_list:list,
+               validation_prompt_list:list,
+               pipeline:T5UnetPipeline,
+               start_epoch:int,
+               accelerator:object,
+               epochs:int,
+               seed:int,
+                num_inference_steps:int,
+                num_validation_images:int,
+                noise_offset:float,
+                batch_size:int,
+                size:int,
+                training_method:str,
+                token_dict:dict={}):
+    print(f"begin training method  {training_method} on device {accelerator.device}")
+    print(token_dict)
+    tracker=accelerator.get_tracker("wandb")
+    for i in range(num_validation_images):
+        wandb.define_metric(f"{training_method}_img_{i}",step_metric="custom_step")
+    if training_method==T5_UNET or training_method==LLAMA_UNET:
+        max_length=77
+    elif training_method==T5_TRANSFORMER:
+        max_length=120
+    pipeline.prepare(accelerator)
+    text_encoder=pipeline.text_encoder
+    tokenizer=pipeline.tokenizer
+    vae=pipeline.vae
+    scheduler=pipeline.scheduler
+    vis=pipeline.vis
+    adapter=pipeline.adapter
+    optimizer = torch.optim.AdamW(
+        text_encoder.get_input_embeddings().parameters(),
+        lr=1e-4,
+        betas=(0.9, 0.999),
+        weight_decay=1e-2,
+        eps=1e-8,
+    )
+    dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
+    optimizer,dataloader=accelerator.prepare(optimizer,dataloader)
+
+    added_cond_kwargs={}
+    weight_dtype=vae.dtype
+    global_step=0
+    device=accelerator.device
+    for e in range(start_epoch, epochs):
+        train_loss = 0.0
+        for step,batch in enumerate(dataloader):
+            with accelerator.accumulate(text_encoder):
+                # Latent preparation
+                latents = vae.encode(batch[IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)
+                latents = latents * 0.18215
+                noise = torch.randn_like(latents)
+                if noise_offset:
+                        noise += noise_offset * torch.randn(
+                            (latents.shape[0], latents.shape[1], 1, 1), device=device
+                        )
+                bsz = latents.shape[0]
+                if len(token_dict)>0:
+                    time_key_list=[k for k in token_dict.keys()]
+                    timesteps_array=random.choices(time_key_list,k=bsz)
+                    #timesteps = torch.randint(0, num_inference_steps, (latents.shape[0],), device=device)
+                    timesteps=torch.tensor(timesteps_array,device=device)
+                else: 
+                    timesteps = torch.randint(0, scheduler.config.num_train_timesteps, (latents.shape[0],), device=device)
+                timesteps = timesteps.long()
+
+                noisy_latents = scheduler.add_noise(latents, noise, timesteps)
+                text=sample(text_prompt_list,bsz)
+                if len(token_dict)>0:
+                    for count,time_key in enumerate(timesteps.long().detach().tolist()):
+                        text[count]=text[count].format(token_dict[time_key])
+                else:
+                    placeholder=PLACEHOLDER
+                    text=[t.format(placeholder) for t in text]
+                #print('loop general text',text)
+                if training_method==T5_UNET or training_method==LLAMA_UNET:
+                    text_input = tokenizer(
+                        text, 
+                        padding="max_length", 
+                        max_length=max_length, 
+                        return_tensors="pt", 
+                        truncation=True,
+                    ).input_ids.to(device)
+                elif training_method==T5_TRANSFORMER:
+                    text_input = tokenizer(
+                        text, 
+                        padding="max_length", 
+                        max_length=max_length, 
+                        add_special_tokens=True,
+                        return_tensors="pt", 
+                        truncation=True,
+                    ).to(device)
+                if training_method==T5_UNET:
+                    encoder_hidden_states_pre = text_encoder(text_input)[0]
+                    encoder_hidden_states = adapter(encoder_hidden_states_pre).sample
+                elif training_method==T5_TRANSFORMER:
+                    prompt_attention_mask = text_input.attention_mask
+                    encoder_hidden_states_pre = text_encoder(text_input.input_ids, attention_mask=prompt_attention_mask)[0]
+                    encoder_hidden_states = adapter(encoder_hidden_states_pre).sample
+                elif training_method==LLAMA_UNET:
+                    encoder_hidden_states_pre = text_encoder(text_input, output_hidden_states=True).hidden_states[-1]
+                    encoder_hidden_states = adapter(encoder_hidden_states_pre).sample
+
+                if training_method==T5_TRANSFORMER:
+                    model_pred=vis(
+                    noisy_latents, 
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=prompt_attention_mask,
+                    timestep=timesteps, 
+                    added_cond_kwargs={"resolution": None, "aspect_ratio": None},
+                    ).sample
+                else:
+                    model_pred = vis(noisy_latents, timestep=timesteps, encoder_hidden_states=encoder_hidden_states).sample
+
+                loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")            
+                accelerator.backward(loss)
+
+                avg_loss = accelerator.gather(loss.repeat(batch_size)).mean()
+                train_loss += avg_loss.item()
+
+                optimizer.step()
+                optimizer.zero_grad()
+                if accelerator.sync_gradients:
+                    params_to_clip =[p for p in text_encoder.parameters()]
+                    accelerator.clip_grad_norm_(params_to_clip, 1.0)
+                    global_step += 1
+                    accelerator.log({f"train_loss": train_loss})
+                    train_loss = 0.0
+        if accelerator.is_main_process:
+            generator = torch.Generator()
+            generator.manual_seed(seed)
+            path=f"{training_method}_tmp.png"
+            for i in range(num_validation_images):
+                val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
+                print(f"validation {training_method}_img_{i} {val_prompt} saved at {path}")
+                added_cond_kwargs={}
+                if len(token_dict)>0:
+                    img=pipeline(val_prompt,
+                                            num_inference_steps=num_inference_steps, generator=generator,token_dict=token_dict)[0]
+                else:
+                    val_prompt=val_prompt.format(PLACEHOLDER)
+                    img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator)[0]
+                img.save(path)
+                tracker.log({f"{training_method}_{i}": wandb.Image(path)})
+        accelerator.free_memory()
+        torch.cuda.empty_cache()
+        gc.collect()
+    return pipeline
+
+
+
+'''def loop_t5_transformer(images: list,
+               text_prompt_list:list,
+               validation_prompt_list:list,
+               pipeline:T5UnetPipeline,
+               start_epoch:int,
+               accelerator:object,
+               epochs:int,
+               seed:int,
+                num_inference_steps:int,
+                num_validation_images:int,
+                noise_offset:float,
+                batch_size:int,
+                size:int,
+                token_dict:dict={}):
+    print(f"begin training method  t5 transformer on device {accelerator.device}")
+    print(token_dict)
+    tracker=accelerator.get_tracker("wandb")
+    for i in range(num_validation_images):
+        wandb.define_metric(f"t5_transformer_img_{i}",step_metric="custom_step")
+    pipeline.prepare(accelerator)
+
+    text_encoder=pipeline.text_encoder
+    tokenizer=pipeline.tokenizer
+    vae=pipeline.vae
+    scheduler=pipeline.scheduler
+    vis=pipeline.vis
+    adapter=pipeline.adapter
+    optimizer = torch.optim.AdamW(
+        text_encoder.get_input_embeddings().parameters(),
+        lr=1e-4,
+        betas=(0.9, 0.999),
+        weight_decay=1e-2,
+        eps=1e-8,
+    )
+    dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
+    optimizer,dataloader=accelerator.prepare(optimizer,dataloader)
+    weight_dtype=vae.dtype
+    global_step=0
+    device=accelerator.device
+    for e in range(start_epoch, epochs):
+        train_loss = 0.0
+        for step,batch in enumerate(dataloader):
+            with accelerator.accumulate(vis,text_encoder):
+                latents = vae.encode(batch[IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)
+                latents = latents * 0.18215
+                noise = torch.randn_like(latents)
+                if noise_offset:
+                        noise += noise_offset * torch.randn(
+                            (latents.shape[0], latents.shape[1], 1, 1), device=device
+                        )
+                bsz = latents.shape[0]
+                if len(token_dict)>0:
+                    time_key_list=[k for k in token_dict.keys()]
+                    timesteps_array=random.choices(time_key_list,k=bsz)
+                    #timesteps = torch.randint(0, num_inference_steps, (latents.shape[0],), device=device)
+                    timesteps=torch.tensor(timesteps_array,device=device)
+                else: 
+                    timesteps = torch.randint(0, scheduler.config.num_train_timesteps, (latents.shape[0],), device=device)
+                timesteps = timesteps.long()
+
+                noisy_latents = scheduler.add_noise(latents, noise, timesteps)
+                text=sample(text_prompt_list,bsz)
+                if len(token_dict)>0:
+                    for count,time_key in enumerate(timesteps.long().detach().tolist()):
+                        text[count]=text[count].format(token_dict[time_key])
+                else:
+                    placeholder=PLACEHOLDER
+                    text=[t.format(placeholder) for t in text]
+                text_inputs = tokenizer(
+                batch[1], 
+                    padding="max_length", 
+                    max_length=120, 
+                    add_special_tokens=True, 
+                    return_tensors="pt",
+                    truncation=True, 
+                ).to(accelerator.device)
+                prompt_attention_mask = text_inputs.attention_mask
+                encoder_hidden_states_pre = text_encoder(text_inputs.input_ids, attention_mask=prompt_attention_mask)[0]
+                encoder_hidden_states = adapter(encoder_hidden_states_pre).sample
+                '''
