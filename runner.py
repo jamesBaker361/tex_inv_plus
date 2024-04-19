@@ -13,7 +13,10 @@ from accelerate import Accelerator
 from gpu import print_details
 from datasets import load_dataset
 from static_globals import *
-from experiment import train_and_evaluate_one_sample_vanilla
+from experiment import train_and_evaluate_one_sample_vanilla, train_and_evaluate_one_sample
+import numpy as np
+import random
+import wandb
 
 parser=argparse.ArgumentParser()
 
@@ -31,6 +34,8 @@ parser.add_argument("--src_dataset",type=str,default="jlbaker361/personalization
 parser.add_argument("--testing",action='store_true')
 parser.add_argument("--batch_size",type=int,default=1)
 parser.add_argument("--size",type=int,default=512,help="image size")
+parser.add_argument("--limit",type=int,default=5)
+parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/inversion")
 
 
 
@@ -88,6 +93,10 @@ def main(args):
         "  {} as a police officer"
     ]
 
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+
     data=load_dataset(args.src_dataset,split="train")
     accelerator=Accelerator(mixed_precision=args.mixed_precision,log_with="wandb")
     accelerator.init_trackers(project_name="text_inv", config=vars(args))
@@ -95,8 +104,15 @@ def main(args):
         prompt_list= prompt_list[:2]
         evaluation_prompt_list=evaluation_prompt_list[:2]
 
-    for row in data:
+    aggregate_dict={
+        metric:[] for metric in METRIC_LIST
+    }
+
+    for j,row in enumerate(data):
+        if j>args.limit:
+            break
         image_list=[row[f"image_{i}"] for i in range(3)]
+        label=row["label"]
         if args.training_method==VANILLA:
             pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample_vanilla(
                 image_list,
@@ -114,7 +130,35 @@ def main(args):
                 args.size,
                 evaluation_prompt_list
             )
-    return
+        else:
+             pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
+                  image_list,
+                prompt_list,
+                args.epochs,
+                args.training_method,
+                accelerator,
+                args.num_inference_steps,
+                args.token_strategy,
+                validation_prompt_list,
+                args.seed,
+                args.num_validation_images,
+                args.noise_offset,
+                args.batch_size,
+                args.size,
+                evaluation_prompt_list
+             )
+        for metric,value in metric_dict.items():
+                aggregate_dict[metric].append(value)
+        print(f"after {j} samples:")
+        for metric,value_list in aggregate_dict.items():
+            print(f"\t{metric} {np.mean(value_list)}")
+        for i,image in enumerate(evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}/{args.training_method}_{i}":wandb.Image(path)
+            })
 
 if __name__=='__main__':
     print_details()
