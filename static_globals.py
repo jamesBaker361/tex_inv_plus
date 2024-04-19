@@ -7,6 +7,9 @@ TEXT_PROMPT="text_prompt"
 PLACEHOLDER="<S>"
 
 VANILLA="vanilla"
+T5_UNET="t5_unet"
+T5_TRANSFORMER="t5_transformer"
+LLAMA_UNET="llama_unet"
 
 #token strategy
 DEFAULT="default"
