@@ -64,6 +64,29 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
             #print(t)
             token_dict[t]="<{}>".format(new_token)
             tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder)
+    elif token_strategy==HALF or token_strategy==THIRD:
+        n_tokens={
+            HALF:2,
+            THIRD:3
+        }[token_strategy]
+        n_steps=len([t for t in timesteps.detach().tolist()])
+        steps_per_token=n_steps//n_tokens
+        current_count=0
+        current_token=generate_random_string()
+        new_token=generate_random_string()
+        while is_real_word(new_token) or new_token in token_set:
+            current_token=generate_random_string()
+        token_set.add(current_token)
+        for count,t in enumerate(timesteps.detach().tolist()):
+            token_dict[t]="<{}>".format(current_token)
+            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(current_token), tokenizer, text_encoder)
+            current_count+=1
+            if current_count>steps_per_token:
+                current_token=generate_random_string()
+                while is_real_word(new_token) or new_token in token_set:
+                    current_token=generate_random_string()
+                token_set.add(current_token)
+                current_count=0
     elif token_strategy==DEFAULT:
         tokenizer,text_encoder=prepare_textual_inversion(PLACEHOLDER, tokenizer, text_encoder)
     return tokenizer,text_encoder,token_dict
@@ -127,7 +150,9 @@ def train_and_evaluate_one_sample_vanilla(
         noise_offset:float,
         batch_size:int,
         size:int,
-        evaluation_prompt_list:list
+        evaluation_prompt_list:list,
+        prior:bool,
+        prior_class:str
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -152,7 +177,9 @@ def train_and_evaluate_one_sample_vanilla(
         noise_offset,
         batch_size,
         size,
-        token_dict
+        token_dict,
+        prior,
+        prior_class
     )
     if token_strategy==DEFAULT:
         evaluation_image_list=[
@@ -200,23 +227,22 @@ def train_and_evaluate_one_sample(
 
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
-    if training_method==T5_UNET:
-        pipeline=loop_general(
-            image_list,
-            prompt_list,
-            validation_prompt_list,
-            pipeline,
-            0,
-            accelerator,
-            epochs,
-            seed,
-            num_inference_steps,
-            num_validation_images,
-            noise_offset,
-            batch_size,
-            size,
-            training_method,
-            token_dict)
+    pipeline=loop_general(
+        image_list,
+        prompt_list,
+        validation_prompt_list,
+        pipeline,
+        0,
+        accelerator,
+        epochs,
+        seed,
+        num_inference_steps,
+        num_validation_images,
+        noise_offset,
+        batch_size,
+        size,
+        training_method,
+        token_dict)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),
