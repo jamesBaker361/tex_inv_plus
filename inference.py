@@ -165,7 +165,6 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
             latent_model_input = torch.cat([latents] * 2) if pipeline.do_classifier_free_guidance else latents
             latent_model_input = pipeline.scheduler.scale_model_input(latent_model_input, t)
             if prompt_dict is not None:
-                print(t.long().detach().tolist())
                 prompt_embeds=prompt_dict[t.long().detach().tolist()]
             # predict the noise residual
             noise_pred = pipeline.unet(
