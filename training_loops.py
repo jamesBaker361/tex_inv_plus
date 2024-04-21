@@ -195,7 +195,8 @@ def loop_general(images: list,
                 batch_size:int,
                 size:int,
                 training_method:str,
-                token_dict:dict={}):
+                token_dict:dict={},
+                train_adapter:bool=False):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     print(token_dict)
     tracker=accelerator.get_tracker("wandb")

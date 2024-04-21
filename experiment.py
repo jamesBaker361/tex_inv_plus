@@ -214,7 +214,8 @@ def train_and_evaluate_one_sample(
         noise_offset:float,
         batch_size:int,
         size:int,
-        evaluation_prompt_list:list):
+        evaluation_prompt_list:list,
+        train_adapter:bool):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline()
     elif training_method==T5_TRANSFORMER:
@@ -242,7 +243,7 @@ def train_and_evaluate_one_sample(
         batch_size,
         size,
         training_method,
-        token_dict)
+        token_dict,train_adapter)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),
