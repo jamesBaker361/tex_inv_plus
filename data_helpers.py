@@ -19,7 +19,7 @@ class CustomDataset(Dataset):
             example[k]=v[index]
         return example
 
-def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,tokenizer)->DataLoader:
+def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,tokenizer,prior_images:list=[], prior_text_prompt_list:list=[])->DataLoader:
     '''
     makes a torch dataloader that we can use for training
     '''
@@ -43,6 +43,8 @@ def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,
     mapping={
         TEXT_INPUT_IDS:[], #tokenized texts
         IMAGES:[], #images used for latents (lora trainign script calls it pixel values)
+        PRIOR_TEXT_INPUT_IDS:[],
+        PRIOR_IMAGES:[]
     }
     for image in  images:
         mapping[IMAGES].append(img_transform(image.convert("RGB")))
@@ -51,8 +53,36 @@ def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,
         ).input_ids
     mapping[TEXT_INPUT_IDS]=text_input_ids
 
-    def collate_fn(examples):
-        return {
+    if len(prior_images)>0 and len(prior_text_prompt_list)>0:
+        prior_preservation=True
+        
+        if len(prior_images)!=len(prior_text_prompt_list):
+            print('len(prior_images)!=len(prior_text_prompt_list)')
+        new_prior_images=[]
+        new_prior_text_prompt_list=[]
+        for k,image in enumerate(images): #make sure theres same amount of images in each list
+            new_prior_images.append(prior_images[k%len(prior_images)])
+            new_prior_text_prompt_list.append(prior_text_prompt_list[k%len(text_prompt_list)])
+        prior_text_prompt_list=new_prior_text_prompt_list
+        prior_images=new_prior_images
+        mapping[PRIOR_IMAGES]=[img_transform(image.convert("RGB")) for image in prior_images]
+        mapping[PRIOR_TEXT_INPUT_IDS]=tokenizer(
+            prior_text_prompt_list,max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt"
+        ).input_ids
+    else:
+        prior_preservation=False
+    
+
+    def collate_fn(examples,prior_preservation=False):
+        if prior_preservation:
+            return {
+                TEXT_INPUT_IDS: torch.stack([example[TEXT_INPUT_IDS] for example in examples]),
+                IMAGES: torch.stack([example[IMAGES] for example in examples]),
+                PRIOR_IMAGES: torch.stack([example[PRIOR_IMAGES] for example in examples]),
+                PRIOR_TEXT_INPUT_IDS: torch.stack([example[PRIOR_TEXT_INPUT_IDS] for example in examples])
+            }
+        else:
+            return {
                 TEXT_INPUT_IDS: torch.stack([example[TEXT_INPUT_IDS] for example in examples]),
                 IMAGES: torch.stack([example[IMAGES] for example in examples])
             }
@@ -61,7 +91,7 @@ def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,
     train_dataloader = DataLoader(
         train_dataset,
         shuffle=True,
-        collate_fn=lambda examples: collate_fn(examples),
+        collate_fn=lambda examples: collate_fn(examples,prior_preservation=prior_preservation),
         batch_size=batch_size,
     )
     return train_dataloader
