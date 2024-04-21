@@ -17,6 +17,14 @@ from experiment import train_and_evaluate_one_sample_vanilla, train_and_evaluate
 import numpy as np
 import random
 import wandb
+import re
+
+def clean_string(input_string):
+    # Remove all numbers
+    cleaned_string = re.sub(r'\d+', '', input_string)
+    # Replace underscores with spaces
+    cleaned_string = cleaned_string.replace('_', ' ')
+    return cleaned_string
 
 parser=argparse.ArgumentParser()
 
@@ -114,6 +122,8 @@ def main(args):
             break
         image_list=[row[f"image_{i}"] for i in range(3)]
         label=row["label"]
+        prior_class=clean_string(label)
+        print(j,f"label: {label} prior_class: {prior_class}")
         if args.training_method==VANILLA:
             pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample_vanilla(
                 image_list,
@@ -129,7 +139,9 @@ def main(args):
                 args.noise_offset,
                 args.batch_size,
                 args.size,
-                evaluation_prompt_list
+                evaluation_prompt_list,
+                args.prior,
+                prior_class
             )
         else:
              pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
