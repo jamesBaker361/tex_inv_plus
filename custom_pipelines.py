@@ -6,6 +6,7 @@ cache_dir="/scratch/jlb638/trans_cache"
 os.environ["TRANSFORMERS_CACHE"]=cache_dir
 os.environ["HF_HOME"]=cache_dir
 os.environ["HF_HUB_CACHE"]=cache_dir
+os.environ["HF_DATASETS_CACHE"]=cache_dir
 import torch
 torch.hub.set_dir("/scratch/jlb638/torch_hub_cache")
 sys.path.append("../")
@@ -27,6 +28,11 @@ from gpu import print_details
 
 class PreparePipeline:
     def prepare(self,accelerator:Accelerator):
+        print(f"accelerator device f {accelerator.device}")
+        self.vae.to(accelerator.device)
+        self.vis.to(accelerator.device)
+        self.text_encoder.to(accelerator.device)
+        self.adapter.to(accelerator.device)
         self.vae, self.vis,self.text_encoder,self.adapter,self.scheduler=accelerator.prepare(
             self.vae, self.vis,self.text_encoder,self.adapter,self.scheduler
         )
@@ -86,13 +92,19 @@ class T5UnetPipeline(PreparePipeline):
                 text_ids = self.tokenizer(prompt,padding=True, return_tensors="pt", truncation=True).input_ids.to(torch_device)
                 text_embeddings = self.text_encoder(input_ids=text_ids)[0]
                 batch_size, n_tokens,dim= text_embeddings.shape
+                #print(prompt,'text_embeddings.shape',text_embeddings.shape)
                 text_embeddings = self.adapter(text_embeddings).sample
                 if negative_prompts==None:
                     uncond_input = self.tokenizer([""], padding="max_length", max_length=n_tokens, return_tensors="pt")
                 else:
                     uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=n_tokens, return_tensors="pt")
                 uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(torch_device))[0]
+                batch_size, uncond_n_tokens,dim= uncond_embeddings.shape
                 uncond_embeddings =  self.adapter(uncond_embeddings).sample
+                if uncond_n_tokens>n_tokens:
+                    text_ids = self.tokenizer(prompt,padding="max_length",max_length=uncond_n_tokens, return_tensors="pt", truncation=True).input_ids.to(torch_device)
+                    text_embeddings = self.text_encoder(input_ids=text_ids)[0]
+                    text_embeddings = self.adapter(text_embeddings).sample
                 text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
                 # Latent preparation
@@ -109,7 +121,7 @@ class T5UnetPipeline(PreparePipeline):
                         text_ids = self.tokenizer(prompt.format(placeholder), padding=True, return_tensors="pt", truncation=True).input_ids.to(torch_device)
                         text_embeddings = self.text_encoder(input_ids=text_ids)[0]
                         batch_size, n_tokens,dim= text_embeddings.shape
-
+                        #print(prompt,'text_embeddings.shape',text_embeddings.shape)
                         text_embeddings = self.adapter(text_embeddings).sample
 
                         if negative_prompts==None:
@@ -117,7 +129,12 @@ class T5UnetPipeline(PreparePipeline):
                         else:
                             uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=n_tokens, return_tensors="pt")
                         uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(torch_device))[0]
+                        batch_size, uncond_n_tokens,dim= uncond_embeddings.shape
                         uncond_embeddings =  self.adapter(uncond_embeddings).sample
+                        if uncond_n_tokens>n_tokens:
+                            text_ids = self.tokenizer(prompt,padding="max_length",max_length=uncond_n_tokens, return_tensors="pt", truncation=True).input_ids.to(torch_device)
+                            text_embeddings = self.text_encoder(input_ids=text_ids)[0]
+                            text_embeddings = self.adapter(text_embeddings).sample
                         text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
                     latent_model_input = torch.cat([latents] * 2)
@@ -144,7 +161,7 @@ class T5TransformerPipeline(PreparePipeline):
         self.vae = AutoencoderKL.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="vae")
         self.vis = Transformer2DModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="transformer")
         self.scheduler = UniPCMultistepScheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
-        self.tokenizer = AutoTokenizer.from_pretrained("t5-large")
+        self.tokenizer = AutoTokenizer.from_pretrained("t5-large", model_max_length=512)
         self.text_encoder = T5EncoderModel.from_pretrained("t5-large")
         checkpoint_dir=snapshot_download("shihaozhao/LaVi-Bridge")
         self.adapter = TextAdapter.from_pretrained(os.path.join(checkpoint_dir, f"t5_transformer/adapter"), use_safetensors=True)
@@ -251,18 +268,19 @@ class T5TransformerPipeline(PreparePipeline):
     
 
 class LlamaUnetPipeline(PreparePipeline):
-    def __init__(self,llama_dir="meta-llama/Llama-2-7b-hf"):
+    def __init__(self,llama_dir="meta-llama/Llama-2-7b-hf",dtype=torch.float16):
         VIS_REPLACE_MODULES = {"ResnetBlock2D", "CrossAttention", "Attention", "GEGLU"}
         TEXT_ENCODER_REPLACE_MODULES = {"LlamaAttention"}
-        self.vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae",torch_dtype=torch.float16)
-        self.vis = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet",torch_dtype=torch.float16)
-        self.scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=torch.float16)
-        self.tokenizer = LlamaTokenizer.from_pretrained(llama_dir,torch_dtype=torch.float16)
+        self.vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae",torch_dtype=dtype)
+        self.vis = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet",torch_dtype=dtype)
+        self.scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=dtype)
+        llama_repo=llama_dir
+        self.tokenizer = LlamaTokenizer.from_pretrained(llama_repo,torch_dtype=dtype, model_max_length=512,token="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")
         # To perform inference on a 24GB GPU memory, llama2 was converted to half precision
-        self.text_encoder = LlamaForCausalLM.from_pretrained(llama_dir,torch_dtype=torch.float16)
+        self.text_encoder = LlamaForCausalLM.from_pretrained(llama_repo,torch_dtype=dtype)
         checkpoint_dir=snapshot_download("shihaozhao/LaVi-Bridge")
         #adapter_path=hf_hub_download("shihaozhao/LaVi-Bridge",subfolder=args.subfolder,filename="adapter")
-        self.adapter = TextAdapter.from_pretrained(os.path.join(checkpoint_dir, f"llama2_unet/adapter"),torch_dtype=torch.float16)
+        self.adapter = TextAdapter.from_pretrained(os.path.join(checkpoint_dir, f"llama2_unet/adapter"),torch_dtype=dtype)
         self.tokenizer.pad_token = '[PAD]'
 
         monkeypatch_or_replace_lora_extended(
@@ -286,7 +304,8 @@ class LlamaUnetPipeline(PreparePipeline):
                  num_inference_steps:int=30,
                  guidance_scale:float=7.5,
                  size:int=512,
-                 token_dict:dict={}
+                 token_dict:dict={},
+                 generator=None
                  )->list:
         images=[]
         if type(prompts)==type("string"):
@@ -298,24 +317,36 @@ class LlamaUnetPipeline(PreparePipeline):
         if negative_prompts!=None and len(negative_prompts)!=len(prompts):
             raise Exception(f"mismatch between negative prompts len {len(negative_prompts)} and prompts len {len(prompts)}")
         torch_device=self.vis.device
+        try:
+            dtype=self.vis.dtype
+            print('dtype=self.vis.dytpe',dtype)
+        except:
+            print("couldnt find self.vis.dytpe")
+        try:
+            dtype=self.vis.weight_dtype
+            print('dtype=self.vis.weight_dtype',self.vis.weight_dtype)
+        except:
+            print("couldnt find self.vis.weight_dtype")
         #print("type(prompts),prompts,negative_prompts",type(prompts),prompts,negative_prompts)
         with torch.no_grad():
             for k,prompt in enumerate(prompts):
                 # Text embeddings
                 text_ids = self.tokenizer(prompt, padding="max_length", max_length=77, return_tensors="pt", truncation=True).input_ids.to(torch_device)
-                text_embeddings = self.text_encoder(input_ids=text_ids, output_hidden_states=True).hidden_states[-1].to(torch.float16)
+                #print('text_ids.dtype',text_ids.dtype,'text_ids.device',text_ids.device)
+                #print('self.text_encoder.dtype',self.text_encoder.dtype,'self.text_encoder.device',self.text_encoder.device)
+                text_embeddings = self.text_encoder(input_ids=text_ids, output_hidden_states=True).hidden_states[-1].to(dtype)
                 text_embeddings = self.adapter(text_embeddings).sample
-                if negative_prompts==None:
-                    uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=77, return_tensors="pt")
+                if negative_prompts!=None:
+                    uncond_input = self.tokenizer(negative_prompts[k], padding="max_length", max_length=77, return_tensors="pt").to(dtype)
                 else:
-                    uncond_input = self.tokenizer([""], padding="max_length", max_length=77, return_tensors="pt")
+                    uncond_input = self.tokenizer([""], padding="max_length", max_length=77, return_tensors="pt").to(dtype)
                 # Convert the text embedding back to full precision
-                uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(torch_device), output_hidden_states=True).hidden_states[-1]
+                uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(torch_device), output_hidden_states=True).hidden_states[-1].to(dtype)
                 uncond_embeddings =  self.adapter(uncond_embeddings).sample
                 text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
                 # Latent preparation
-                latents = torch.randn((1, self.vis.in_channels, size // 8,size // 8)).to(torch_device).to(torch.float16)
+                latents = torch.randn((1, self.vis.in_channels, size // 8,size // 8),generator=generator).to(torch_device).to(dtype)
                 latents = latents * self.scheduler.init_noise_sigma
 
                 # Model prediction
@@ -325,7 +356,9 @@ class LlamaUnetPipeline(PreparePipeline):
                     if timestep_key in token_dict:
                         placeholder=token_dict[timestep_key]
                         text_ids = self.tokenizer(prompt.format(placeholder), padding="max_length", max_length=77, return_tensors="pt", truncation=True).input_ids.to(torch_device)
-                        text_embeddings = self.text_encoder(input_ids=text_ids, output_hidden_states=True).hidden_states[-1].to(torch.float16)
+                        #print('text_ids.dtype',text_ids.dtype,'text_ids.device',text_ids.device)
+                        #print('self.text_encoder.dtype',self.text_encoder.dtype,'self.text_encoder.device',self.text_encoder.device)
+                        text_embeddings = self.text_encoder(input_ids=text_ids, output_hidden_states=True).hidden_states[-1].to(dtype)
                         text_embeddings = self.adapter(text_embeddings).sample
                         text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
