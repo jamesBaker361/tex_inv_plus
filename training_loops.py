@@ -9,6 +9,7 @@ from inference import call_vanilla_with_dict
 from random import sample
 from custom_pipelines import T5UnetPipeline
 import random
+from gpu import print_details
 
 def loop_vanilla(images: list,
                text_prompt_list:list,
@@ -23,7 +24,9 @@ def loop_vanilla(images: list,
                 noise_offset:float,
                 batch_size:int,
                 size:int,
-                token_dict:dict={}
+                token_dict:dict={},
+                prior:bool=False,
+                prior_class:str=""
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -38,7 +41,16 @@ def loop_vanilla(images: list,
     text_encoder=pipeline.text_encoder
     unet=pipeline.unet
     scheduler=pipeline.scheduler
-    dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
+    if prior:
+        prior_images=[
+            pipeline(prior_class,num_inference_steps=num_inference_steps, safety_checker=None).images[0] for _ in images
+        ]
+        prior_text_prompt_list=[
+            prior_class for _ in images
+        ]
+        dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer,prior_images,prior_text_prompt_list)
+    else:
+        dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
     print("len dataloader",len(dataloader))
     print("len images ",len(images))
     print("len text prompt list",len(text_prompt_list))
@@ -60,6 +72,8 @@ def loop_vanilla(images: list,
     device=accelerator.device
     for e in range(start_epoch, epochs):
         train_loss = 0.0
+        print("training loops line 75")
+        print_details()
         for step,batch in enumerate(dataloader):
             batch_size=batch[IMAGES].shape[0]
             print(f"batch size {batch_size}")
@@ -103,10 +117,6 @@ def loop_vanilla(images: list,
                 # (this is the forward diffusion process)
                 noisy_latents = scheduler.add_noise(latents, noise, timesteps)
 
-                # Get the text embedding for conditioning
-                #encoder_hidden_states = text_encoder(batch[TEXT_INPUT_IDS])[0]
-                #print('text_encoder(batch[TEXT_INPUT_IDS])',text_encoder(batch[TEXT_INPUT_IDS]))
-                #print('encoder_hidden_states.size()',encoder_hidden_states.size())
 
                 noise_pred = unet(noisy_latents, 
                                 timesteps, 
@@ -114,6 +124,23 @@ def loop_vanilla(images: list,
                                 added_cond_kwargs=added_cond_kwargs).sample
                 
                 loss = F.mse_loss(noise_pred.float(), noise.float(), reduction="mean")
+
+                if prior:
+                    prior_latents=vae.encode(batch[PRIOR_IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)* vae.config.scaling_factor
+                    prior_noise = torch.randn_like(latents)
+                    if noise_offset:
+                        prior_noise += noise_offset * torch.randn(
+                            (latents.shape[0], latents.shape[1], 1, 1), device=device
+                        )
+                    prior_noisy_latents=noisy_latents = scheduler.add_noise(prior_latents, prior_noise, timesteps)
+                    prior_encoder_hidden_states=batch[PRIOR_TEXT_INPUT_IDS].to(device).to(weight_dtype)
+                    prior_noise_pred=unet(prior_noisy_latents,
+                                          timesteps,
+                                          prior_encoder_hidden_states,
+                                          added_cond_kwargs=added_cond_kwargs).sample
+                    
+                    prior_loss = F.mse_loss(prior_noise_pred.float(), prior_noise.float(), reduction="mean")
+                    loss=loss+prior_loss
 
                 avg_loss = accelerator.gather(loss.repeat(batch_size)).mean()
                 train_loss += avg_loss.item()
@@ -127,6 +154,8 @@ def loop_vanilla(images: list,
                 global_step += 1
                 accelerator.log({f"train_loss": train_loss})
                 train_loss = 0.0
+        print("loop vanilla line 157")
+        print_details()
         if accelerator.is_main_process:
 
             generator = torch.Generator(device=accelerator.device)
@@ -191,12 +220,29 @@ def loop_general(images: list,
         eps=1e-8,
     )
     dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
-    optimizer,dataloader=accelerator.prepare(optimizer,dataloader)
+    optimizer,dataloader,text_encoder,tokenizer,vae,scheduler,adapter=accelerator.prepare(
+        optimizer,dataloader,text_encoder,tokenizer,vae,scheduler,adapter
+    )
 
     added_cond_kwargs={}
     weight_dtype=vae.dtype
     global_step=0
     device=accelerator.device
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    path=f"{training_method}_tmp.png"
+    for i in range(num_validation_images):
+        val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
+        print(f"validation {training_method}_img_{i} {val_prompt} saved at {path}")
+        added_cond_kwargs={}
+        if len(token_dict)>0:
+            img=pipeline(val_prompt,
+                                    num_inference_steps=num_inference_steps, generator=generator,token_dict=token_dict)[0]
+        else:
+            val_prompt=val_prompt.format(PLACEHOLDER)
+            img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator)[0]
+        img.save(path)
+        tracker.log({f"{training_method}_{i}": wandb.Image(path)})
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         for step,batch in enumerate(dataloader):
@@ -264,6 +310,7 @@ def loop_general(images: list,
                     timestep=timesteps, 
                     added_cond_kwargs={"resolution": None, "aspect_ratio": None},
                     ).sample
+                    model_pred = model_pred.chunk(2, dim=1)[0]
                 else:
                     model_pred = vis(noisy_latents, timestep=timesteps, encoder_hidden_states=encoder_hidden_states).sample
 
