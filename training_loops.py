@@ -130,10 +130,10 @@ def loop_vanilla(images: list,
                     prior_noise = torch.randn_like(latents)
                     if noise_offset:
                         prior_noise += noise_offset * torch.randn(
-                            (latents.shape[0], latents.shape[1], 1, 1), device=device
+                            (prior_latents.shape[0], prior_latents.shape[1], 1, 1), device=device
                         )
-                    prior_noisy_latents=noisy_latents = scheduler.add_noise(prior_latents, prior_noise, timesteps)
-                    prior_encoder_hidden_states=batch[PRIOR_TEXT_INPUT_IDS].to(device).to(weight_dtype)
+                    prior_noisy_latents=scheduler.add_noise(prior_latents, prior_noise, timesteps)
+                    prior_encoder_hidden_states=text_encoder(batch[PRIOR_TEXT_INPUT_IDS])[0].to(device).to(weight_dtype)
                     prior_noise_pred=unet(prior_noisy_latents,
                                           timesteps,
                                           prior_encoder_hidden_states,
@@ -154,9 +154,7 @@ def loop_vanilla(images: list,
                 global_step += 1
                 accelerator.log({f"train_loss": train_loss})
                 train_loss = 0.0
-        print("loop vanilla line 157")
-        print_details()
-        if accelerator.is_main_process:
+        '''if accelerator.is_main_process:
 
             generator = torch.Generator(device=accelerator.device)
             generator.manual_seed(seed)
@@ -175,7 +173,7 @@ def loop_vanilla(images: list,
                     val_prompt=val_prompt.format(PLACEHOLDER)
                     img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
                 img.save(path)
-                tracker.log({f"vanilla_img_{i}": wandb.Image(path)})
+                tracker.log({f"vanilla_img_{i}": wandb.Image(path)})'''
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
@@ -198,6 +196,8 @@ def loop_general(images: list,
                 token_dict:dict={},
                 train_adapter:bool=False):
     print(f"begin training method  {training_method} on device {accelerator.device}")
+    #third_image=pipeline("thing")[0]
+    #third_image.save(f"{training_method}_third.png")
     print(token_dict)
     tracker=accelerator.get_tracker("wandb")
     for i in range(num_validation_images):
@@ -207,22 +207,26 @@ def loop_general(images: list,
     elif training_method==T5_TRANSFORMER:
         max_length=120
     pipeline.prepare(accelerator)
+    #fourth_image=pipeline("thing")[0]
+    #fourth_image.save(f"{training_method}_fourth.png")
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
     vae=pipeline.vae
     scheduler=pipeline.scheduler
     vis=pipeline.vis
     adapter=pipeline.adapter
+    adapter.requires_grad_(train_adapter)
+    trainable_params=[p for p in text_encoder.get_input_embeddings().parameters()]+[p for p in adapter.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(
-        text_encoder.get_input_embeddings().parameters(),
+        trainable_params,
         lr=1e-4,
         betas=(0.9, 0.999),
         weight_decay=1e-2,
         eps=1e-8,
     )
     dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
-    optimizer,dataloader,text_encoder,tokenizer,vae,scheduler,adapter=accelerator.prepare(
-        optimizer,dataloader,text_encoder,tokenizer,vae,scheduler,adapter
+    optimizer,dataloader=accelerator.prepare(
+        optimizer,dataloader
     )
 
     added_cond_kwargs={}
@@ -238,16 +242,24 @@ def loop_general(images: list,
         added_cond_kwargs={}
         if len(token_dict)>0:
             img=pipeline(val_prompt,
-                                    num_inference_steps=num_inference_steps, generator=generator,token_dict=token_dict)[0]
+                                    num_inference_steps=num_inference_steps, 
+                                    #generator=generator,
+                                    token_dict=token_dict)[0]
         else:
             val_prompt=val_prompt.format(PLACEHOLDER)
-            img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator)[0]
+            print(val_prompt)
+            img=pipeline(val_prompt, num_inference_steps=num_inference_steps, 
+                         #generator=generator
+                         )[0]
         img.save(path)
         tracker.log({f"{training_method}_{i}": wandb.Image(path)})
+    trainable_models=[text_encoder]
+    if train_adapter:
+        trainable_models.append(adapter)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         for step,batch in enumerate(dataloader):
-            with accelerator.accumulate(text_encoder):
+            with accelerator.accumulate(*trainable_models):
                 # Latent preparation
                 latents = vae.encode(batch[IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)
                 latents = latents * 0.18215
@@ -325,11 +337,11 @@ def loop_general(images: list,
                 optimizer.zero_grad()
                 if accelerator.sync_gradients:
                     params_to_clip =[p for p in text_encoder.parameters()]
-                    accelerator.clip_grad_norm_(params_to_clip, 1.0)
+                    #accelerator.clip_grad_norm_(params_to_clip, 1.0)
                     global_step += 1
                     accelerator.log({f"train_loss": train_loss})
                     train_loss = 0.0
-        if accelerator.is_main_process:
+        '''if accelerator.is_main_process:
             generator = torch.Generator()
             generator.manual_seed(seed)
             path=f"{training_method}_tmp.png"
@@ -339,12 +351,16 @@ def loop_general(images: list,
                 added_cond_kwargs={}
                 if len(token_dict)>0:
                     img=pipeline(val_prompt,
-                                            num_inference_steps=num_inference_steps, generator=generator,token_dict=token_dict)[0]
+                                            num_inference_steps=num_inference_steps, 
+                                            #generator=generator,
+                                            token_dict=token_dict)[0]
                 else:
                     val_prompt=val_prompt.format(PLACEHOLDER)
-                    img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator)[0]
+                    img=pipeline(val_prompt, num_inference_steps=num_inference_steps, 
+                                 #generator=generator
+                                 )[0]
                 img.save(path)
-                tracker.log({f"{training_method}_{i}": wandb.Image(path)})
+                tracker.log({f"{training_method}_{i}": wandb.Image(path)})'''
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()

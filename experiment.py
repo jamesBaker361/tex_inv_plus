@@ -6,6 +6,7 @@ import torch
 import random
 import string
 import nltk
+import os
 nltk.download('words')
 from nltk.corpus import words
 from training_loops import loop_vanilla,loop_general
@@ -221,13 +222,20 @@ def train_and_evaluate_one_sample(
     elif training_method==T5_TRANSFORMER:
         pipeline=T5TransformerPipeline()
     elif training_method==LLAMA_UNET:
-        pipeline=LlamaUnetPipeline()
+        os.environ["CUDA_LAUNCH_BLOCKING"]="1"
+        pipeline=LlamaUnetPipeline(dtype=
+                                   {"no":torch.float32,
+                                    "fp16":torch.float16}[accelerator.mixed_precision])
+    #first_image=pipeline("thing")[0]
+    #first_image.save(f"{training_method}_first.png")
     scheduler=pipeline.scheduler
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
 
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    #second_image=pipeline("thing")[0]
+    #second_image.save(f"{training_method}_second.png")
     pipeline=loop_general(
         image_list,
         prompt_list,
