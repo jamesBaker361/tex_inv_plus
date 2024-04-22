@@ -336,8 +336,8 @@ def loop_general(images: list,
                 optimizer.step()
                 optimizer.zero_grad()
                 if accelerator.sync_gradients:
-                    params_to_clip =[p for p in text_encoder.parameters()]
-                    #accelerator.clip_grad_norm_(params_to_clip, 1.0)
+                    params_to_clip =[p for p in text_encoder.parameters()]+[p for p in adapter.parameters()]
+                    accelerator.clip_grad_norm_(params_to_clip, 1.0)
                     global_step += 1
                     accelerator.log({f"train_loss": train_loss})
                     train_loss = 0.0
