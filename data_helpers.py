@@ -62,7 +62,7 @@ def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,
         new_prior_text_prompt_list=[]
         for k,image in enumerate(images): #make sure theres same amount of images in each list
             new_prior_images.append(prior_images[k%len(prior_images)])
-            new_prior_text_prompt_list.append(prior_text_prompt_list[k%len(text_prompt_list)])
+            new_prior_text_prompt_list.append(prior_text_prompt_list[k%len(prior_text_prompt_list)])
         prior_text_prompt_list=new_prior_text_prompt_list
         prior_images=new_prior_images
         mapping[PRIOR_IMAGES]=[img_transform(image.convert("RGB")) for image in prior_images]
