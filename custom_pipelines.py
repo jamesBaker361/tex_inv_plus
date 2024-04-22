@@ -33,9 +33,6 @@ class PreparePipeline:
         self.vis.to(accelerator.device)
         self.text_encoder.to(accelerator.device)
         self.adapter.to(accelerator.device)
-        self.vae, self.vis,self.text_encoder,self.adapter,self.scheduler=accelerator.prepare(
-            self.vae, self.vis,self.text_encoder,self.adapter,self.scheduler
-        )
 
 
 class T5UnetPipeline(PreparePipeline):
@@ -275,7 +272,7 @@ class LlamaUnetPipeline(PreparePipeline):
         self.vis = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet",torch_dtype=dtype)
         self.scheduler = UniPCMultistepScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=dtype)
         llama_repo=llama_dir
-        self.tokenizer = LlamaTokenizer.from_pretrained(llama_repo,torch_dtype=dtype, model_max_length=512,token="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")
+        self.tokenizer = LlamaTokenizer.from_pretrained(llama_repo,torch_dtype=dtype, model_max_length=512)
         # To perform inference on a 24GB GPU memory, llama2 was converted to half precision
         self.text_encoder = LlamaForCausalLM.from_pretrained(llama_repo,torch_dtype=dtype)
         checkpoint_dir=snapshot_download("shihaozhao/LaVi-Bridge")
