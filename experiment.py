@@ -12,7 +12,7 @@ from nltk.corpus import words
 from training_loops import loop_vanilla,loop_general
 from inference import call_vanilla_with_dict
 import ImageReward as image_reward
-reward_cache="/scratch/jlb638/ImageReward"
+reward_cache="/scratch/jlb638/reward_pt"
 from transformers import CLIPProcessor, CLIPModel,ViTImageProcessor, ViTModel
 import numpy as np
 from numpy.linalg import norm
