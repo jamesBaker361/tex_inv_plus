@@ -153,7 +153,8 @@ def train_and_evaluate_one_sample_vanilla(
         size:int,
         evaluation_prompt_list:list,
         prior:bool,
-        prior_class:str
+        prior_class:str,
+        lr:float,
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -180,7 +181,8 @@ def train_and_evaluate_one_sample_vanilla(
         size,
         token_dict,
         prior,
-        prior_class
+        prior_class,
+        lr
     )
     if token_strategy==DEFAULT:
         evaluation_image_list=[
@@ -216,7 +218,8 @@ def train_and_evaluate_one_sample(
         batch_size:int,
         size:int,
         evaluation_prompt_list:list,
-        train_adapter:bool):
+        train_adapter:bool,
+        lr:float):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline()
     elif training_method==T5_TRANSFORMER:
@@ -251,7 +254,8 @@ def train_and_evaluate_one_sample(
         batch_size,
         size,
         training_method,
-        token_dict,train_adapter)
+        token_dict,train_adapter,
+        lr)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),

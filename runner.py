@@ -46,6 +46,7 @@ parser.add_argument("--limit",type=int,default=5)
 parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/inversion")
 parser.add_argument("--prior", action='store_true',help="use prior like for dreambooth")
 parser.add_argument("--train_adapter",action="store_true")
+parser.add_argument("--lr",type=float,default=0.04)
 
 
 
@@ -81,26 +82,26 @@ def main(args):
     ]
 
     validation_prompt_list=[
-        "a picture of {}"
+        "a photo of {}"
     ]
 
     evaluation_prompt_list=[
-        "  {} at the beach",
-        "  {} in the jungle",
-        "  {} in the snow",
-        "  {} in the street",
-        "  {} with a city in the background",
-        "  {} with a mountain in the background",
-        "  {} with the Eiffel Tower in the background",
-        "  {} near the Statue of Liberty",
-        "  {} near the Sydney Opera House",
-        "  {} floating on top of water",
-        "  {} eating a burger",
-        "  {} drinking a beer",
-        "  {} wearing a blue hat",
-        "  {} wearing sunglasses",
-        "  {} playing with a ball",
-        "  {} as a police officer"
+        "a photo of  {} at the beach",
+        "a photo of  {} in the jungle",
+        "a photo of  {} in the snow",
+        "a photo of  {} in the street",
+        "a photo of  {} with a city in the background",
+        "a photo of  {} with a mountain in the background",
+        "a photo of  {} with the Eiffel Tower in the background",
+        "a photo of  {} near the Statue of Liberty",
+        "a photo of  {} near the Sydney Opera House",
+        "a photo of  {} floating on top of water",
+        "a photo of  {} eating a burger",
+        "a photo of  {} drinking a beer",
+        "a photo of  {} wearing a blue hat",
+        "a photo of  {} wearing sunglasses",
+        "a photo of  {} playing with a ball",
+        "a photo of  {} as a police officer"
     ]
 
     random.seed(args.seed)
@@ -142,7 +143,8 @@ def main(args):
                 args.size,
                 evaluation_prompt_list,
                 args.prior,
-                prior_class
+                prior_class,
+                args.lr
             )
         else:
              pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
@@ -160,7 +162,8 @@ def main(args):
                 args.batch_size,
                 args.size,
                 evaluation_prompt_list,
-                args.train_adapter
+                args.train_adapter,
+                args.lr
              )
         for metric,value in metric_dict.items():
                 aggregate_dict[metric].append(value)

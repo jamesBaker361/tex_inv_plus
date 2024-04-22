@@ -26,7 +26,8 @@ def loop_vanilla(images: list,
                 size:int,
                 token_dict:dict={},
                 prior:bool=False,
-                prior_class:str=""
+                prior_class:str="",
+                lr:float=0.04
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -57,7 +58,7 @@ def loop_vanilla(images: list,
     unet=pipeline.unet
     optimizer=torch.optim.AdamW(
         text_encoder.get_input_embeddings().parameters(),  # only optimize the embeddings
-        lr=1e-4,
+        lr=lr,
         betas=(0.9, 0.999),
         weight_decay=1e-2,
         eps=1e-8,
@@ -76,7 +77,6 @@ def loop_vanilla(images: list,
         print_details()
         for step,batch in enumerate(dataloader):
             batch_size=batch[IMAGES].shape[0]
-            print(f"batch size {batch_size}")
             with accelerator.accumulate(text_encoder):
                 latents = vae.encode(batch[IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)
                 latents = latents * vae.config.scaling_factor
@@ -194,7 +194,8 @@ def loop_general(images: list,
                 size:int,
                 training_method:str,
                 token_dict:dict={},
-                train_adapter:bool=False):
+                train_adapter:bool=False,
+                lr:float=0.04):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -219,7 +220,7 @@ def loop_general(images: list,
     trainable_params=[p for p in text_encoder.get_input_embeddings().parameters()]+[p for p in adapter.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(
         trainable_params,
-        lr=1e-4,
+        lr=lr,
         betas=(0.9, 0.999),
         weight_decay=1e-2,
         eps=1e-8,
