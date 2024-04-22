@@ -4,6 +4,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import retri
 from diffusers.image_processor import PipelineImageInput
 from typing import Any, Callable, Dict, List, Optional, Union
 import torch
+from gpu import print_details
 
 def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
         prompt: str = None,
@@ -75,7 +76,8 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
     lora_scale = (
         pipeline.cross_attention_kwargs.get("scale", None) if pipeline.cross_attention_kwargs is not None else None
     )
-
+    print("call vanilla line 79")
+    print_details()
     prompt_dict={}
     negative_input_ids=pipeline.tokenizer(
                     negative_prompt,
@@ -112,7 +114,8 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
     # For classifier free guidance, we need to do two forward passes.
     # Here we concatenate the unconditional and text embeddings into a single batch
     # to avoid doing two forward passes
-
+    print("call vanilla line 117")
+    print_details()
     if ip_adapter_image is not None or ip_adapter_image_embeds is not None:
         image_embeds = pipeline.prepare_ip_adapter_image_embeds(
             ip_adapter_image,
@@ -134,7 +137,8 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
         generator,
         latents,
     )
-
+    print("call vanilla line 140")
+    print_details()
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
     extra_step_kwargs = pipeline.prepare_extra_step_kwargs(generator, eta)
 
@@ -156,6 +160,8 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
     # 7. Denoising loop
     num_warmup_steps = len(timesteps) - num_inference_steps * pipeline.scheduler.order
     pipeline._num_timesteps = len(timesteps)
+    print("call vanilla line 163")
+    print_details()
     with pipeline.progress_bar(total=num_inference_steps) as progress_bar:
         for i, t in enumerate(timesteps):
             if pipeline.interrupt:
@@ -167,6 +173,8 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
             if prompt_dict is not None:
                 prompt_embeds=prompt_dict[t.long().detach().tolist()]
             # predict the noise residual
+            print("call vanilla line 176")
+            print_details()
             noise_pred = pipeline.unet(
                 latent_model_input,
                 t,
@@ -181,6 +189,7 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
             if pipeline.do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond + pipeline.guidance_scale * (noise_pred_text - noise_pred_uncond)
+                del noise_pred_uncond
 
             if pipeline.do_classifier_free_guidance and t.long() in cfg_dict:
                 # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
@@ -207,6 +216,10 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
                 if callback is not None and i % callback_steps == 0:
                     step_idx = i // getattr(pipeline.scheduler, "order", 1)
                     callback(step_idx, t, latents)
+            del latent_model_input,noise_pred
+            if prompt_dict is not None:
+                del prompt_embeds
+            torch.cuda.empty_cache()
 
     if not output_type == "latent":
         image = pipeline.vae.decode(latents / pipeline.vae.config.scaling_factor, return_dict=False, generator=generator)[0]
