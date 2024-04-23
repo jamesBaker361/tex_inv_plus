@@ -71,13 +71,16 @@ def loop_vanilla(images: list,
     weight_dtype=pipeline.dtype
     global_step=0
     device=accelerator.device
+    models=[text_encoder]
+    if prior:
+        models=[unet]
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         print("training loops line 75")
         print_details()
         for step,batch in enumerate(dataloader):
             batch_size=batch[IMAGES].shape[0]
-            with accelerator.accumulate(text_encoder):
+            with accelerator.accumulate(*models):
                 latents = vae.encode(batch[IMAGES].to(dtype=weight_dtype)).latent_dist.sample().to(device=device)
                 latents = latents * vae.config.scaling_factor
 
@@ -146,14 +149,15 @@ def loop_vanilla(images: list,
                 train_loss += avg_loss.item()
                 # Backpropagate
                 accelerator.backward(loss)
+                
+                if accelerator.sync_gradients:
+                    params_to_clip =[p for p in text_encoder.parameters()]
+                    accelerator.clip_grad_norm_(params_to_clip, 1.0)
                 optimizer.step()
                 optimizer.zero_grad()
-            if accelerator.sync_gradients:
-                params_to_clip =[p for p in text_encoder.parameters()]
-                accelerator.clip_grad_norm_(params_to_clip, 1.0)
-                global_step += 1
-                accelerator.log({f"train_loss": train_loss})
-                train_loss = 0.0
+            global_step += 1
+            accelerator.log({f"train_loss": train_loss})
+            train_loss = 0.0
         '''if accelerator.is_main_process:
 
             generator = torch.Generator(device=accelerator.device)
@@ -177,6 +181,10 @@ def loop_vanilla(images: list,
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
+    del optimizer, dataloader
+    accelerator.free_memory()
+    torch.cuda.empty_cache()
+    gc.collect()
     return pipeline
 
 def loop_general(images: list,
@@ -339,9 +347,11 @@ def loop_general(images: list,
                 if accelerator.sync_gradients:
                     params_to_clip =[p for p in text_encoder.parameters()]+[p for p in adapter.parameters()]
                     accelerator.clip_grad_norm_(params_to_clip, 1.0)
-                    global_step += 1
-                    accelerator.log({f"train_loss": train_loss})
-                    train_loss = 0.0
+                optimizer.step()
+                optimizer.zero_grad()
+            global_step += 1
+            accelerator.log({f"train_loss": train_loss})
+            train_loss = 0.0
         '''if accelerator.is_main_process:
             generator = torch.Generator()
             generator.manual_seed(seed)
@@ -365,6 +375,7 @@ def loop_general(images: list,
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
+    del optimizer,dataloader
     return pipeline
 
 
