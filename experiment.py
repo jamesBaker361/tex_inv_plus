@@ -11,8 +11,12 @@ nltk.download('words')
 from nltk.corpus import words
 from training_loops import loop_vanilla,loop_general
 from inference import call_vanilla_with_dict
+import random
 import ImageReward as image_reward
-reward_cache="/scratch/jlb638/reward_pt"
+import string
+def generate_random_string(length):
+    return ''.join(random.choice(string.ascii_letters) for _ in range(length))
+reward_cache="/scratch/jlb638/reward_symbolic/"+generate_random_string(10)
 from transformers import CLIPProcessor, CLIPModel,ViTImageProcessor, ViTModel
 import numpy as np
 from numpy.linalg import norm
@@ -201,7 +205,11 @@ def train_and_evaluate_one_sample_vanilla(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return pipeline,metric_dict,evaluation_image_list
+    del tokenizer,text_encoder,token_dict,timesteps, num_inference_steps,pipeline
+    accelerator.free_memory()
+    torch.cuda.empty_cache()
+    gc.collect()
+    return None,metric_dict,evaluation_image_list
 
 def train_and_evaluate_one_sample(
         image_list:list,
@@ -272,4 +280,8 @@ def train_and_evaluate_one_sample(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return pipeline,metric_dict,evaluation_image_list
+    del tokenizer,text_encoder,token_dict,timesteps, num_inference_steps,pipeline
+    accelerator.free_memory()
+    torch.cuda.empty_cache()
+    gc.collect()
+    return None,metric_dict,evaluation_image_list
