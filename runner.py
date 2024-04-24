@@ -151,7 +151,9 @@ def main(args):
     aggregate_dict={
         metric:[] for metric in METRIC_LIST
     }
-
+    long_aggregate_dict={
+        metric:[] for metric in METRIC_LIST
+    }
     for j,row in enumerate(data):
         if j>args.limit:
             break
@@ -210,10 +212,17 @@ def main(args):
                 args.scheduler_type
              )
         for metric,value in metric_dict.items():
-                aggregate_dict[metric].append(value)
+            aggregate_dict[metric].append(value)
         print(f"after {j} samples:")
         for metric,value_list in aggregate_dict.items():
             print(f"\t{metric} {np.mean(value_list)}")
+        if len(long_metric_dict)>0:
+            print("long stuff")
+            for metric,value in long_metric_dict.items():
+                long_aggregate_dict[metric].append(value)
+            for metric,value_list in long_aggregate_dict.items():
+                print(f"\t{metric} {np.mean(value_list)}")
+
         for i,image in enumerate(evaluation_image_list):
             os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
             path=f"{args.image_dir}/{label}/{args.training_method}/{i}.png"
