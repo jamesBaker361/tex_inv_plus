@@ -38,6 +38,7 @@ def make_dataloader(images: list, text_prompt_list:list,size:int,batch_size:int,
             transforms.CenterCrop(size),
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5]),
+            transforms.RandomHorizontalFlip(0.5)
     ])
 
     mapping={
