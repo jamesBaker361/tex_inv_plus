@@ -11,6 +11,7 @@ from custom_pipelines import T5UnetPipeline
 import random
 from gpu import print_details
 from diffusers.optimization import get_scheduler
+import math
 
 def loop_vanilla(images: list,
                text_prompt_list:list,
@@ -31,7 +32,8 @@ def loop_vanilla(images: list,
                 lr:float=0.04,
                 lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
-                lr_num_cycles:int=1
+                lr_num_cycles:int=1,
+                max_grad_norm:float=1.0
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -67,7 +69,9 @@ def loop_vanilla(images: list,
         weight_decay=1e-2,
         eps=1e-8,
     )
-    max_train_steps=num_inference_steps*len(dataloader)
+    dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
+    num_update_steps_per_epoch = math.ceil(len(dataloader) / accelerator.gradient_accumulation_steps)
+    max_train_steps = epochs * num_update_steps_per_epoch
     lr_scheduler = get_scheduler(
         lr_scheduler_type,
         optimizer=optimizer,
@@ -80,6 +84,10 @@ def loop_vanilla(images: list,
     unet,text_encoder,vae,tokenizer, optimizer, dataloader, scheduler,lr_scheduler= accelerator.prepare(
         unet,text_encoder,vae,tokenizer, optimizer, dataloader, scheduler,lr_scheduler
     )
+    
+    num_update_steps_per_epoch = math.ceil(len(dataloader) / accelerator.gradient_accumulation_steps)
+    max_train_steps = epochs * num_update_steps_per_epoch
+    epochs=math.ceil(max_train_steps / num_update_steps_per_epoch)
     added_cond_kwargs={}
     weight_dtype=pipeline.dtype
     global_step=0
@@ -165,7 +173,7 @@ def loop_vanilla(images: list,
                 
                 if accelerator.sync_gradients:
                     params_to_clip =[p for p in text_encoder.parameters()]
-                    accelerator.clip_grad_norm_(params_to_clip, 1.0)
+                    accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -220,7 +228,8 @@ def loop_general(images: list,
                 lr:float=0.04,
                 lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
-                lr_num_cycles:int=1):
+                lr_num_cycles:int=1,
+                max_grad_norm:float=1.0):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -250,8 +259,9 @@ def loop_general(images: list,
         weight_decay=1e-2,
         eps=1e-8,
     )
-
-    max_train_steps=num_inference_steps*len(dataloader)
+    dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
+    num_update_steps_per_epoch = math.ceil(len(dataloader) / accelerator.gradient_accumulation_steps)
+    max_train_steps = epochs * num_update_steps_per_epoch
     lr_scheduler = get_scheduler(
         lr_scheduler_type,
         optimizer=optimizer,
@@ -260,10 +270,14 @@ def loop_general(images: list,
         num_cycles=lr_num_cycles,
     )
 
-    dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
+    
     optimizer,dataloader,lr_scheduler=accelerator.prepare(
         optimizer,dataloader,lr_scheduler
     )
+
+    num_update_steps_per_epoch = math.ceil(len(dataloader) / accelerator.gradient_accumulation_steps)
+    max_train_steps = epochs * num_update_steps_per_epoch
+    epochs=math.ceil(max_train_steps / num_update_steps_per_epoch)
 
     added_cond_kwargs={}
     weight_dtype=vae.dtype
@@ -373,7 +387,7 @@ def loop_general(images: list,
                 optimizer.zero_grad()
                 if accelerator.sync_gradients:
                     params_to_clip =[p for p in text_encoder.parameters()]+[p for p in adapter.parameters()]
-                    accelerator.clip_grad_norm_(params_to_clip, 1.0)
+                    accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
                 optimizer.step()
                 optimizer.zero_grad()
             global_step += 1

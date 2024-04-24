@@ -50,6 +50,13 @@ parser.add_argument("--lr",type=float,default=0.04)
 parser.add_argument("--lr_scheduler_type",type=str,default="constant")
 parser.add_argument("--lr_warmup_steps",type=int,default=500)
 parser.add_argument("--lr_num_cycles",type=int,default=1)
+parser.add_argument("--max_grad_norm",type=float,default=10.0)
+parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=1,
+        help="Number of updates steps to accumulate before performing a backward/update pass.",
+    )
 
 
 
@@ -130,7 +137,11 @@ def main(args):
     np.random.seed(args.seed)
 
     data=load_dataset(args.src_dataset,split="train")
-    accelerator=Accelerator(mixed_precision=args.mixed_precision,log_with="wandb")
+    accelerator=Accelerator(mixed_precision=args.mixed_precision,log_with="wandb",
+                            gradient_accumulation_steps=args.gradient_accumulation_steps)
+    args.lr = (
+            args.lr * args.gradient_accumulation_steps * args.batch_size * accelerator.num_processes
+        )
     accelerator.init_trackers(project_name="text_inv", config=vars(args))
     if args.testing:
         prompt_list= prompt_list[:2]
@@ -168,7 +179,8 @@ def main(args):
                 args.lr,
                 args.lr_scheduler_type,
                 args.lr_warmup_steps,
-                args.lr_num_cycles
+                args.lr_num_cycles,
+                args.max_grad_norm
             )
 
         else:
@@ -191,7 +203,8 @@ def main(args):
                 args.lr,
                 args.lr_scheduler_type,
                 args.lr_warmup_steps,
-                args.lr_num_cycles
+                args.lr_num_cycles,
+                args.max_grad_norm
              )
         for metric,value in metric_dict.items():
                 aggregate_dict[metric].append(value)
