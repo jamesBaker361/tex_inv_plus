@@ -46,7 +46,7 @@ class T5UnetPipeline(PreparePipeline):
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
             "DDPMScheduler":DDPMScheduler
-        }["scheduler_type"]
+        }[scheduler_type]
         self.scheduler = scheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler")
         self.tokenizer = AutoTokenizer.from_pretrained("t5-large", model_max_length=512)
         self.text_encoder = T5EncoderModel.from_pretrained("t5-large")
@@ -156,7 +156,7 @@ class T5UnetPipeline(PreparePipeline):
         return images
     
 class T5TransformerPipeline(PreparePipeline):
-    def __init__(self):
+    def __init__(self,scheduler_type="UniPCMultistepScheduler"):
         VIS_REPLACE_MODULES = {"Attention", "GEGLU"}
         TEXT_ENCODER_REPLACE_MODULES = {"T5Attention"}
         # Modules of T2I diffusion models
@@ -166,7 +166,7 @@ class T5TransformerPipeline(PreparePipeline):
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
             "DDPMScheduler":DDPMScheduler
-        }["scheduler_type"]
+        }[scheduler_type]
         self.scheduler = scheduler.from_pretrainedfrom_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
         self.tokenizer = AutoTokenizer.from_pretrained("t5-large", model_max_length=512)
         self.text_encoder = T5EncoderModel.from_pretrained("t5-large")
@@ -275,7 +275,7 @@ class T5TransformerPipeline(PreparePipeline):
     
 
 class LlamaUnetPipeline(PreparePipeline):
-    def __init__(self,llama_dir="meta-llama/Llama-2-7b-hf",dtype=torch.float16):
+    def __init__(self,llama_dir="meta-llama/Llama-2-7b-hf",dtype=torch.float16,scheduler_type="UniPCMultistepScheduler"):
         VIS_REPLACE_MODULES = {"ResnetBlock2D", "CrossAttention", "Attention", "GEGLU"}
         TEXT_ENCODER_REPLACE_MODULES = {"LlamaAttention"}
         self.vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae",torch_dtype=dtype)
@@ -284,7 +284,7 @@ class LlamaUnetPipeline(PreparePipeline):
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
             "DDPMScheduler":DDPMScheduler
-        }["scheduler_type"]
+        }[scheduler_type]
         self.scheduler = scheduler.from_pretrained.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=dtype)
         llama_repo=llama_dir
         self.tokenizer = LlamaTokenizer.from_pretrained(llama_repo,torch_dtype=dtype, model_max_length=512)

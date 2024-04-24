@@ -1,4 +1,4 @@
-from diffusers import StableDiffusionPipeline, UniPCMultistepScheduler
+from diffusers import StableDiffusionPipeline, UniPCMultistepScheduler,DPMSolverMultistepScheduler,DDPMScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import retrieve_timesteps, rescale_noise_cfg
 from accelerate import Accelerator
 from static_globals import *
@@ -162,14 +162,20 @@ def train_and_evaluate_one_sample_vanilla(
         lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
                 lr_num_cycles:int=1,
-                max_grad_norm:float=1.0
+                max_grad_norm:float=1.0,
+                scheduler_type="UniPCMultistepScheduler"
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
     unet=pipeline.unet
     vae=pipeline.vae
-    pipeline.scheduler=UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
+    scheduler={
+            "UniPCMultistepScheduler":UniPCMultistepScheduler,
+            "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
+            "DDPMScheduler":DDPMScheduler
+        }[scheduler_type]
+    pipeline.scheduler = scheduler.from_config(pipeline.scheduler.config)
     scheduler=pipeline.scheduler
     for model in [vae,unet,text_encoder]:
         model.requires_grad_(False)
@@ -210,6 +216,7 @@ def train_and_evaluate_one_sample_vanilla(
                     safety_checker=None,token_dict=token_dict).images[0] for evaluation_prompt in evaluation_prompt_list
         ]
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
+    long_metric_dict={}
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
@@ -217,7 +224,7 @@ def train_and_evaluate_one_sample_vanilla(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return None,metric_dict,evaluation_image_list
+    return None,metric_dict,long_metric_dict,evaluation_image_list
 
 def train_and_evaluate_one_sample(
         image_list:list,
@@ -239,16 +246,18 @@ def train_and_evaluate_one_sample(
         lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
                 lr_num_cycles:int=1,
-                max_grad_norm:float=1.0):
+                max_grad_norm:float=1.0,
+                scheduler_type="UniPCMultistepScheduler"):
     if training_method==T5_UNET:
-        pipeline=T5UnetPipeline()
+        pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
-        pipeline=T5TransformerPipeline()
+        pipeline=T5TransformerPipeline(scheduler_type=scheduler_type)
     elif training_method==LLAMA_UNET:
         os.environ["CUDA_LAUNCH_BLOCKING"]="1"
         pipeline=LlamaUnetPipeline(dtype=
                                    {"no":torch.float32,
-                                    "fp16":torch.float16}[accelerator.mixed_precision])
+                                    "fp16":torch.float16}[accelerator.mixed_precision],
+                                    scheduler_type=scheduler_type)
     #first_image=pipeline("thing")[0]
     #first_image.save(f"{training_method}_first.png")
     scheduler=pipeline.scheduler
@@ -293,6 +302,7 @@ def train_and_evaluate_one_sample(
                     negative_prompts=NEGATIVE,token_dict=token_dict)[0] for evaluation_prompt in evaluation_prompt_list
         ]
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
+    long_metric_dict={}
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
@@ -300,4 +310,4 @@ def train_and_evaluate_one_sample(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return None,metric_dict,evaluation_image_list
+    return None,metric_dict,long_metric_dict,evaluation_image_list

@@ -57,6 +57,7 @@ parser.add_argument(
         default=1,
         help="Number of updates steps to accumulate before performing a backward/update pass.",
     )
+parser.add_argument("--scheduler_type",type=str,default="UniPCMultistepScheduler")
 
 
 
@@ -159,7 +160,7 @@ def main(args):
         prior_class=clean_string(label)
         print(j,f"label: {label} prior_class: {prior_class}")
         if args.training_method==VANILLA:
-            pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample_vanilla(
+            pipeline,metric_dict,long_metric_dict,evaluation_image_list=train_and_evaluate_one_sample_vanilla(
                 image_list,
                 prompt_list,
                 args.epochs,
@@ -180,11 +181,12 @@ def main(args):
                 args.lr_scheduler_type,
                 args.lr_warmup_steps,
                 args.lr_num_cycles,
-                args.max_grad_norm
+                args.max_grad_norm,
+                args.scheduler_type
             )
 
         else:
-             pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
+             pipeline,metric_dict,long_metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
                   image_list,
                 prompt_list,
                 args.epochs,
@@ -204,7 +206,8 @@ def main(args):
                 args.lr_scheduler_type,
                 args.lr_warmup_steps,
                 args.lr_num_cycles,
-                args.max_grad_norm
+                args.max_grad_norm,
+                args.scheduler_type
              )
         for metric,value in metric_dict.items():
                 aggregate_dict[metric].append(value)

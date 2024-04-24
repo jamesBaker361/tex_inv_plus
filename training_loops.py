@@ -100,6 +100,11 @@ def loop_vanilla(images: list,
     print(f"total_batch_size {total_batch_size}")
     print(f"len(dataloader) {len(dataloader)}")
     print(f"epochs {epochs}")
+    orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.clone()
+    if len(token_dict)>0:
+        token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
+    else:
+        token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         print("training loops line 75")
@@ -182,6 +187,15 @@ def loop_vanilla(images: list,
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
+
+                # Let's make sure we don't update any embedding weights besides the newly added token
+                index_no_updates = torch.ones((len(tokenizer),), dtype=torch.bool)
+                index_no_updates[min(token_ids) : max(token_ids) + 1] = False
+
+                with torch.no_grad():
+                    accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[
+                        index_no_updates
+                    ] = orig_embeds_params[index_no_updates]
             global_step += 1
             accelerator.log({f"train_loss": train_loss})
             train_loss = 0.0
@@ -315,6 +329,11 @@ def loop_general(images: list,
     trainable_models=[text_encoder]
     if train_adapter:
         trainable_models.append(adapter)
+    orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.clone()
+    if len(token_dict)>0:
+        token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
+    else:
+        token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         for step,batch in enumerate(dataloader):
@@ -392,13 +411,22 @@ def loop_general(images: list,
                 avg_loss = accelerator.gather(loss.repeat(batch_size)).mean()
                 train_loss += avg_loss.item()
 
-                optimizer.step()
-                optimizer.zero_grad()
+
                 if accelerator.sync_gradients:
                     params_to_clip =[p for p in text_encoder.parameters()]+[p for p in adapter.parameters()]
                     accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
                 optimizer.step()
+                lr_scheduler.step()
                 optimizer.zero_grad()
+
+                # Let's make sure we don't update any embedding weights besides the newly added token
+                index_no_updates = torch.ones((len(tokenizer),), dtype=torch.bool)
+                index_no_updates[min(token_ids) : max(token_ids) + 1] = False
+
+                with torch.no_grad():
+                    accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[
+                        index_no_updates
+                    ] = orig_embeds_params[index_no_updates]
             global_step += 1
             accelerator.log({f"train_loss": train_loss})
             train_loss = 0.0
