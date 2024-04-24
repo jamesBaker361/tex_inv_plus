@@ -10,6 +10,7 @@ from random import sample
 from custom_pipelines import T5UnetPipeline
 import random
 from gpu import print_details
+from diffusers.optimization import get_scheduler
 
 def loop_vanilla(images: list,
                text_prompt_list:list,
@@ -27,7 +28,10 @@ def loop_vanilla(images: list,
                 token_dict:dict={},
                 prior:bool=False,
                 prior_class:str="",
-                lr:float=0.04
+                lr:float=0.04,
+                lr_scheduler_type:str="constant",
+                lr_warmup_steps:int=500,
+                lr_num_cycles:int=1
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -63,9 +67,18 @@ def loop_vanilla(images: list,
         weight_decay=1e-2,
         eps=1e-8,
     )
+    max_train_steps=num_inference_steps*len(dataloader)
+    lr_scheduler = get_scheduler(
+        lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=lr_warmup_steps * accelerator.num_processes,
+        num_training_steps=max_train_steps * accelerator.num_processes,
+        num_cycles=lr_num_cycles,
+    )
+
     
-    unet,text_encoder,vae,tokenizer, optimizer, dataloader, scheduler= accelerator.prepare(
-        unet,text_encoder,vae,tokenizer, optimizer, dataloader, scheduler
+    unet,text_encoder,vae,tokenizer, optimizer, dataloader, scheduler,lr_scheduler= accelerator.prepare(
+        unet,text_encoder,vae,tokenizer, optimizer, dataloader, scheduler,lr_scheduler
     )
     added_cond_kwargs={}
     weight_dtype=pipeline.dtype
@@ -154,6 +167,7 @@ def loop_vanilla(images: list,
                     params_to_clip =[p for p in text_encoder.parameters()]
                     accelerator.clip_grad_norm_(params_to_clip, 1.0)
                 optimizer.step()
+                lr_scheduler.step()
                 optimizer.zero_grad()
             global_step += 1
             accelerator.log({f"train_loss": train_loss})
@@ -181,7 +195,7 @@ def loop_vanilla(images: list,
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
-    del optimizer, dataloader
+    del optimizer, dataloader,lr_scheduler
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
@@ -203,7 +217,10 @@ def loop_general(images: list,
                 training_method:str,
                 token_dict:dict={},
                 train_adapter:bool=False,
-                lr:float=0.04):
+                lr:float=0.04,
+                lr_scheduler_type:str="constant",
+                lr_warmup_steps:int=500,
+                lr_num_cycles:int=1):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -233,9 +250,19 @@ def loop_general(images: list,
         weight_decay=1e-2,
         eps=1e-8,
     )
+
+    max_train_steps=num_inference_steps*len(dataloader)
+    lr_scheduler = get_scheduler(
+        lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=lr_warmup_steps * accelerator.num_processes,
+        num_training_steps=max_train_steps * accelerator.num_processes,
+        num_cycles=lr_num_cycles,
+    )
+
     dataloader=make_dataloader(images,text_prompt_list,size,batch_size,tokenizer)
-    optimizer,dataloader=accelerator.prepare(
-        optimizer,dataloader
+    optimizer,dataloader,lr_scheduler=accelerator.prepare(
+        optimizer,dataloader,lr_scheduler
     )
 
     added_cond_kwargs={}
@@ -375,7 +402,7 @@ def loop_general(images: list,
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
-    del optimizer,dataloader
+    del optimizer,dataloader,lr_scheduler
     return pipeline
 
 

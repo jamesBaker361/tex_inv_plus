@@ -107,7 +107,7 @@ def get_metric_dict(evaluation_prompt_list:list, evaluation_image_list:list,imag
     text_embed_list=outputs.text_embeds.detach().numpy()
     image_embed_list=outputs.image_embeds.detach().numpy()[:-src_image_n]
     src_image_embed_list=outputs.image_embeds.detach().numpy()[-src_image_n:]
-    ir_model=image_reward.load("ImageReward-v1.0",download_root=reward_cache)
+    ir_model=image_reward.load("/scratch/jlb638/reward-blob",med_config="/scratch/jlb638/ImageReward/med_config.json")
 
     identity_consistency_list=[]
     target_similarity_list=[]
@@ -159,6 +159,9 @@ def train_and_evaluate_one_sample_vanilla(
         prior:bool,
         prior_class:str,
         lr:float,
+        lr_scheduler_type:str="constant",
+                lr_warmup_steps:int=500,
+                lr_num_cycles:int=1
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -186,7 +189,10 @@ def train_and_evaluate_one_sample_vanilla(
         token_dict,
         prior,
         prior_class,
-        lr
+        lr,
+        lr_scheduler_type,
+                lr_warmup_steps,
+                lr_num_cycles
     )
     if token_strategy==DEFAULT:
         evaluation_image_list=[
@@ -227,7 +233,10 @@ def train_and_evaluate_one_sample(
         size:int,
         evaluation_prompt_list:list,
         train_adapter:bool,
-        lr:float):
+        lr:float,
+        lr_scheduler_type:str="constant",
+                lr_warmup_steps:int=500,
+                lr_num_cycles:int=1):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline()
     elif training_method==T5_TRANSFORMER:
@@ -263,7 +272,10 @@ def train_and_evaluate_one_sample(
         size,
         training_method,
         token_dict,train_adapter,
-        lr)
+        lr,
+        lr_scheduler_type,
+                lr_warmup_steps,
+                lr_num_cycles)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),

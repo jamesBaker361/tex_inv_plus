@@ -47,6 +47,9 @@ parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/inversion")
 parser.add_argument("--prior", action='store_true',help="use prior like for dreambooth")
 parser.add_argument("--train_adapter",action="store_true")
 parser.add_argument("--lr",type=float,default=0.04)
+parser.add_argument("--lr_scheduler_type",type=str,default="constant")
+parser.add_argument("--lr_warmup_steps",type=int,default=500)
+parser.add_argument("--lr_num_cycles",type=int,default=1)
 
 
 
@@ -162,8 +165,12 @@ def main(args):
                 evaluation_prompt_list,
                 args.prior,
                 prior_class,
-                args.lr
+                args.lr,
+                args.lr_scheduler_type,
+                args.lr_warmup_steps,
+                args.lr_num_cycles
             )
+
         else:
              pipeline,metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
                   image_list,
@@ -181,7 +188,10 @@ def main(args):
                 args.size,
                 evaluation_prompt_list,
                 args.train_adapter,
-                args.lr
+                args.lr,
+                args.lr_scheduler_type,
+                args.lr_warmup_steps,
+                args.lr_num_cycles
              )
         for metric,value in metric_dict.items():
                 aggregate_dict[metric].append(value)
