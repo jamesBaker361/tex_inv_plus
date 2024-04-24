@@ -163,7 +163,8 @@ def train_and_evaluate_one_sample_vanilla(
                 lr_warmup_steps:int=500,
                 lr_num_cycles:int=1,
                 max_grad_norm:float=1.0,
-                scheduler_type="UniPCMultistepScheduler"
+                scheduler_type="UniPCMultistepScheduler",
+                long_evaluation_prompt_list:list=[]
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -217,6 +218,22 @@ def train_and_evaluate_one_sample_vanilla(
         ]
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
     long_metric_dict={}
+    long_evaluation_image_list=[]
+    if len(long_evaluation_prompt_list)>0:
+        if token_strategy==DEFAULT:
+            long_evaluation_image_list=[
+                pipeline(evaluation_prompt.format(PLACEHOLDER),
+                        num_inference_steps=num_inference_steps,
+                        negative_prompt=NEGATIVE,
+                        safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list
+            ]
+        else:
+            long_evaluation_image_list=[
+                call_vanilla_with_dict(pipeline,evaluation_prompt,num_inference_steps=num_inference_steps,
+                        negative_prompt=NEGATIVE,
+                        safety_checker=None,token_dict=token_dict).images[0] for evaluation_prompt in long_evaluation_prompt_list
+            ]
+        long_metric_dict=get_metric_dict(long_evaluation_prompt_list, long_evaluation_image_list,image_list)
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
@@ -224,7 +241,7 @@ def train_and_evaluate_one_sample_vanilla(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return None,metric_dict,long_metric_dict,evaluation_image_list
+    return None,metric_dict,long_metric_dict,evaluation_image_list+long_evaluation_image_list
 
 def train_and_evaluate_one_sample(
         image_list:list,
@@ -247,7 +264,8 @@ def train_and_evaluate_one_sample(
                 lr_warmup_steps:int=500,
                 lr_num_cycles:int=1,
                 max_grad_norm:float=1.0,
-                scheduler_type="UniPCMultistepScheduler"):
+                scheduler_type="UniPCMultistepScheduler",
+                long_evaluation_prompt_list:list=[]):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
@@ -303,6 +321,22 @@ def train_and_evaluate_one_sample(
         ]
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
     long_metric_dict={}
+    long_evaluation_image_list=[]
+    if len(long_evaluation_prompt_list)>0:
+        if token_strategy==DEFAULT:
+            long_evaluation_image_list=[
+                pipeline(evaluation_prompt.format(PLACEHOLDER),
+                        num_inference_steps=num_inference_steps,
+                        negative_prompt=NEGATIVE,
+                        safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list
+            ]
+        else:
+            long_evaluation_image_list=[
+                pipeline(evaluation_prompt,
+                    num_inference_steps=num_inference_steps,
+                    negative_prompts=NEGATIVE,token_dict=token_dict)[0] for evaluation_prompt in long_evaluation_prompt_list
+            ]
+    long_metric_dict=get_metric_dict(long_evaluation_prompt_list, long_evaluation_image_list,image_list)
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
@@ -310,4 +344,4 @@ def train_and_evaluate_one_sample(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return None,metric_dict,long_metric_dict,evaluation_image_list
+    return None,metric_dict,long_metric_dict,evaluation_image_list+long_evaluation_image_list
