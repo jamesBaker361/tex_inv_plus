@@ -161,7 +161,8 @@ def train_and_evaluate_one_sample_vanilla(
         lr:float,
         lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
-                lr_num_cycles:int=1
+                lr_num_cycles:int=1,
+                max_grad_norm:float=1.0
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -192,7 +193,8 @@ def train_and_evaluate_one_sample_vanilla(
         lr,
         lr_scheduler_type,
                 lr_warmup_steps,
-                lr_num_cycles
+                lr_num_cycles,
+                max_grad_norm
     )
     if token_strategy==DEFAULT:
         evaluation_image_list=[
@@ -236,7 +238,8 @@ def train_and_evaluate_one_sample(
         lr:float,
         lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
-                lr_num_cycles:int=1):
+                lr_num_cycles:int=1,
+                max_grad_norm:float=1.0):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline()
     elif training_method==T5_TRANSFORMER:
@@ -275,7 +278,8 @@ def train_and_evaluate_one_sample(
         lr,
         lr_scheduler_type,
                 lr_warmup_steps,
-                lr_num_cycles)
+                lr_num_cycles,
+                max_grad_norm)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),
