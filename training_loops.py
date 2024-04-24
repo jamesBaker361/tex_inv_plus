@@ -95,6 +95,11 @@ def loop_vanilla(images: list,
     models=[text_encoder]
     if prior:
         models=[unet]
+
+    total_batch_size = batch_size * accelerator.num_processes * accelerator.gradient_accumulation_steps
+    print(f"total_batch_size {total_batch_size}")
+    print(f"len(dataloader) {len(dataloader)}")
+    print(f"epochs {epochs}")
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         print("training loops line 75")
@@ -286,6 +291,10 @@ def loop_general(images: list,
     generator = torch.Generator()
     generator.manual_seed(seed)
     path=f"{training_method}_tmp.png"
+    total_batch_size = batch_size * accelerator.num_processes * accelerator.gradient_accumulation_steps
+    print(f"total_batch_size {total_batch_size}")
+    print(f"len(dataloader) {len(dataloader)}")
+    print(f"epochs {epochs}")
     for i in range(num_validation_images):
         val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
         print(f"validation {training_method}_img_{i} {val_prompt} saved at {path}")
