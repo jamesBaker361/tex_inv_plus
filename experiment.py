@@ -1,4 +1,4 @@
-from diffusers import StableDiffusionPipeline, UniPCMultistepScheduler,DPMSolverMultistepScheduler,DDPMScheduler
+from diffusers import StableDiffusionPipeline, UniPCMultistepScheduler,DPMSolverMultistepScheduler,DDPMScheduler,DDIMScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import retrieve_timesteps, rescale_noise_cfg
 from accelerate import Accelerator
 from static_globals import *
@@ -60,6 +60,7 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
     #print("prepare_from_token_strategy",timesteps)
     #print(timesteps.detach())
     #print(timesteps.detach().tolist())
+    print(f"tokenizer len {len(tokenizer)}")
     if token_strategy==MULTI:
         for t in timesteps.detach().tolist():
             new_token=generate_random_string()
@@ -94,6 +95,7 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
                 current_count=0
     elif token_strategy==DEFAULT:
         tokenizer,text_encoder=prepare_textual_inversion(PLACEHOLDER, tokenizer, text_encoder)
+    print(f"tokenizer len {len(tokenizer)}")
     return tokenizer,text_encoder,token_dict
 
 def get_metric_dict(evaluation_prompt_list:list, evaluation_image_list:list,image_list:list):
@@ -174,7 +176,8 @@ def train_and_evaluate_one_sample_vanilla(
     scheduler={
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
-            "DDPMScheduler":DDPMScheduler
+            "DDPMScheduler":DDPMScheduler,
+            "DDIMScheduler":DDIMScheduler
         }[scheduler_type]
     pipeline.scheduler = scheduler.from_config(pipeline.scheduler.config)
     scheduler=pipeline.scheduler
@@ -183,6 +186,7 @@ def train_and_evaluate_one_sample_vanilla(
     
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
         image_list,
         prompt_list,
@@ -284,6 +288,7 @@ def train_and_evaluate_one_sample(
 
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]
     #second_image.save(f"{training_method}_second.png")
     pipeline=loop_general(
@@ -327,16 +332,18 @@ def train_and_evaluate_one_sample(
             long_evaluation_image_list=[
                 pipeline(evaluation_prompt.format(PLACEHOLDER),
                         num_inference_steps=num_inference_steps,
-                        negative_prompt=NEGATIVE,
-                        safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list
+                        negative_prompts=NEGATIVE,
+                        )[0] for evaluation_prompt in long_evaluation_prompt_list
             ]
         else:
             long_evaluation_image_list=[
                 pipeline(evaluation_prompt,
                     num_inference_steps=num_inference_steps,
-                    negative_prompts=NEGATIVE,token_dict=token_dict)[0] for evaluation_prompt in long_evaluation_prompt_list
+                    negative_prompts=NEGATIVE,
+                    token_dict=token_dict)[0] for evaluation_prompt in long_evaluation_prompt_list
             ]
-    long_metric_dict=get_metric_dict(long_evaluation_prompt_list, long_evaluation_image_list,image_list)
+        long_metric_dict=get_metric_dict(long_evaluation_prompt_list, long_evaluation_image_list,image_list)
+    evaluation_image_list=evaluation_image_list+long_evaluation_image_list
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
@@ -344,4 +351,4 @@ def train_and_evaluate_one_sample(
     accelerator.free_memory()
     torch.cuda.empty_cache()
     gc.collect()
-    return None,metric_dict,long_metric_dict,evaluation_image_list+long_evaluation_image_list
+    return None,metric_dict,long_metric_dict,evaluation_image_list

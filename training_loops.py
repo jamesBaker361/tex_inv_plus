@@ -101,14 +101,14 @@ def loop_vanilla(images: list,
     print(f"len(dataloader) {len(dataloader)}")
     print(f"epochs {epochs}")
     orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.clone()
-    if len(token_dict)>0:
+    print(f"tokenizer len {len(tokenizer)}")
+    if len(token_dict)==0:
         token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
     else:
         token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
+    print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
-        print("training loops line 75")
-        print_details()
         for step,batch in enumerate(dataloader):
             batch_size=batch[IMAGES].shape[0]
             with accelerator.accumulate(*models):
@@ -330,10 +330,12 @@ def loop_general(images: list,
     if train_adapter:
         trainable_models.append(adapter)
     orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.clone()
-    if len(token_dict)>0:
-        token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
+    print(f"tokenizer len {len(tokenizer)}")
+    if len(token_dict)==0:
+        token_ids=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)
     else:
-        token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
+        token_ids=[tokenizer.encode(v, add_special_tokens=False) for v in token_dict.values()]
+    print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         for step,batch in enumerate(dataloader):

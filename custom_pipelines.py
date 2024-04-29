@@ -19,7 +19,7 @@ from PIL import Image
 from huggingface_hub import hf_hub_download,snapshot_download
 
 import torch
-from diffusers import AutoencoderKL, UNet2DConditionModel, UniPCMultistepScheduler,Transformer2DModel,DPMSolverMultistepScheduler,DDPMScheduler
+from diffusers import AutoencoderKL, UNet2DConditionModel, UniPCMultistepScheduler,Transformer2DModel,DPMSolverMultistepScheduler,DDPMScheduler,DDIMScheduler
 from transformers import AutoTokenizer, T5EncoderModel,LlamaForCausalLM, LlamaTokenizer
 
 from modules.lora import monkeypatch_or_replace_lora_extended
@@ -45,7 +45,8 @@ class T5UnetPipeline(PreparePipeline):
         scheduler={
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
-            "DDPMScheduler":DDPMScheduler
+            "DDPMScheduler":DDPMScheduler,
+            "DDIMScheduler":DDIMScheduler
         }[scheduler_type]
         self.scheduler = scheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler")
         self.tokenizer = AutoTokenizer.from_pretrained("t5-large", model_max_length=512)
@@ -165,9 +166,10 @@ class T5TransformerPipeline(PreparePipeline):
         scheduler={
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
-            "DDPMScheduler":DDPMScheduler
+            "DDPMScheduler":DDPMScheduler,
+            "DDIMScheduler":DDIMScheduler
         }[scheduler_type]
-        self.scheduler = scheduler.from_pretrainedfrom_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
+        self.scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
         self.tokenizer = AutoTokenizer.from_pretrained("t5-large", model_max_length=512)
         self.text_encoder = T5EncoderModel.from_pretrained("t5-large")
         checkpoint_dir=snapshot_download("shihaozhao/LaVi-Bridge")
@@ -283,9 +285,10 @@ class LlamaUnetPipeline(PreparePipeline):
         scheduler={
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
-            "DDPMScheduler":DDPMScheduler
+            "DDPMScheduler":DDPMScheduler,
+            "DDIMScheduler":DDIMScheduler
         }[scheduler_type]
-        self.scheduler = scheduler.from_pretrained.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=dtype)
+        self.scheduler = scheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler",torch_dtype=dtype)
         llama_repo=llama_dir
         self.tokenizer = LlamaTokenizer.from_pretrained(llama_repo,torch_dtype=dtype, model_max_length=512)
         # To perform inference on a 24GB GPU memory, llama2 was converted to half precision

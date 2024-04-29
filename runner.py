@@ -43,6 +43,7 @@ parser.add_argument("--testing",action='store_true')
 parser.add_argument("--batch_size",type=int,default=1)
 parser.add_argument("--size",type=int,default=512,help="image size")
 parser.add_argument("--limit",type=int,default=5)
+parser.add_argument("--start",type=int,default=0)
 parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/inversion")
 parser.add_argument("--prior", action='store_true',help="use prior like for dreambooth")
 parser.add_argument("--train_adapter",action="store_true")
@@ -58,6 +59,7 @@ parser.add_argument(
         help="Number of updates steps to accumulate before performing a backward/update pass.",
     )
 parser.add_argument("--scheduler_type",type=str,default="UniPCMultistepScheduler")
+parser.add_argument("--long_eval",action="store_true")
 
 
 
@@ -145,8 +147,12 @@ def main(args):
         )
     accelerator.init_trackers(project_name="text_inv", config=vars(args))
     if args.testing:
-        prompt_list= prompt_list[:2]
+        #prompt_list= prompt_list[:2]
         evaluation_prompt_list=evaluation_prompt_list[:2]
+        long_evaluation_prompt_list=long_evaluation_prompt_list[:2]
+
+    if args.long_eval == False:
+        long_evaluation_prompt_list=[]
 
     aggregate_dict={
         metric:[] for metric in METRIC_LIST
@@ -155,7 +161,9 @@ def main(args):
         metric:[] for metric in METRIC_LIST
     }
     for j,row in enumerate(data):
-        if j>args.limit:
+        if j<args.start:
+            continue
+        if j>=args.limit:
             break
         image_list=[row[f"image_{i}"] for i in range(3)]
         label=row["label"]
@@ -184,7 +192,8 @@ def main(args):
                 args.lr_warmup_steps,
                 args.lr_num_cycles,
                 args.max_grad_norm,
-                args.scheduler_type
+                args.scheduler_type,
+                long_evaluation_prompt_list
             )
 
         else:
@@ -209,7 +218,8 @@ def main(args):
                 args.lr_warmup_steps,
                 args.lr_num_cycles,
                 args.max_grad_norm,
-                args.scheduler_type
+                args.scheduler_type,
+                long_evaluation_prompt_list
              )
         for metric,value in metric_dict.items():
             aggregate_dict[metric].append(value)
