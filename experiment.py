@@ -166,7 +166,8 @@ def train_and_evaluate_one_sample_vanilla(
                 lr_num_cycles:int=1,
                 max_grad_norm:float=1.0,
                 scheduler_type="UniPCMultistepScheduler",
-                long_evaluation_prompt_list:list=[]
+                long_evaluation_prompt_list:list=[],
+                negative_token:bool=False
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -186,6 +187,8 @@ def train_and_evaluate_one_sample_vanilla(
     
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    if negative_token:
+        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
     text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
         image_list,
@@ -205,7 +208,8 @@ def train_and_evaluate_one_sample_vanilla(
         lr_scheduler_type,
                 lr_warmup_steps,
                 lr_num_cycles,
-                max_grad_norm
+                max_grad_norm,
+                negative_token
     )
     if token_strategy==DEFAULT:
         evaluation_image_list=[
@@ -269,7 +273,8 @@ def train_and_evaluate_one_sample(
                 lr_num_cycles:int=1,
                 max_grad_norm:float=1.0,
                 scheduler_type="UniPCMultistepScheduler",
-                long_evaluation_prompt_list:list=[]):
+                long_evaluation_prompt_list:list=[],
+                negative_token:bool=False):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
@@ -288,6 +293,8 @@ def train_and_evaluate_one_sample(
 
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    if negative_token:
+        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
     text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]
     #second_image.save(f"{training_method}_second.png")
@@ -311,7 +318,8 @@ def train_and_evaluate_one_sample(
         lr_scheduler_type,
                 lr_warmup_steps,
                 lr_num_cycles,
-                max_grad_norm)
+                max_grad_norm,
+                negative_token)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),

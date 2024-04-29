@@ -60,6 +60,7 @@ parser.add_argument(
     )
 parser.add_argument("--scheduler_type",type=str,default="UniPCMultistepScheduler")
 parser.add_argument("--long_eval",action="store_true")
+parser.add_argument("--negative_token",action="store_true")
 
 
 
@@ -193,7 +194,8 @@ def main(args):
                 args.lr_num_cycles,
                 args.max_grad_norm,
                 args.scheduler_type,
-                long_evaluation_prompt_list
+                long_evaluation_prompt_list,
+                args.negative_token
             )
 
         else:
@@ -219,7 +221,8 @@ def main(args):
                 args.lr_num_cycles,
                 args.max_grad_norm,
                 args.scheduler_type,
-                long_evaluation_prompt_list
+                long_evaluation_prompt_list,
+                args.negative_token
              )
         for metric,value in metric_dict.items():
             aggregate_dict[metric].append(value)

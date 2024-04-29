@@ -33,7 +33,8 @@ def loop_vanilla(images: list,
                 lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
                 lr_num_cycles:int=1,
-                max_grad_norm:float=1.0
+                max_grad_norm:float=1.0,
+                negative_token:bool=False
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -248,7 +249,8 @@ def loop_general(images: list,
                 lr_scheduler_type:str="constant",
                 lr_warmup_steps:int=500,
                 lr_num_cycles:int=1,
-                max_grad_norm:float=1.0):
+                max_grad_norm:float=1.0,
+                negative_token:bool=False):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
