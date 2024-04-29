@@ -5,6 +5,7 @@ PRIOR_IMAGES="prior_images"
 PRIOR_TEXT_INPUT_IDS="prior_text_input_ids"
 TEXT_PROMPT="text_prompt"
 PLACEHOLDER="<S>"
+NEGATIVE_PLACEHOLDER="<XJ>"
 
 VANILLA="vanilla"
 T5_UNET="t5_unet"
