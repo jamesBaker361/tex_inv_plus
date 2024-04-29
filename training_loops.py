@@ -107,6 +107,8 @@ def loop_vanilla(images: list,
         token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
     else:
         token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
+    if negative_token:
+        token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False))
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
@@ -132,13 +134,13 @@ def loop_vanilla(images: list,
                 else: 
                     timesteps = torch.randint(0, scheduler.config.num_train_timesteps, (latents.shape[0],), device=device)
                 timesteps = timesteps.long()
-                text=sample(text_prompt_list,bsz)
+                text_list=sample(text_prompt_list,bsz)
                 if len(token_dict)>0:
                     for count,time_key in enumerate(timesteps.long().detach().tolist()):
-                        text[count]=text[count].format(token_dict[time_key])
+                        text[count]=text_list[count].format(token_dict[time_key])
                 else:
                     placeholder=PLACEHOLDER
-                    text=[t.format(placeholder) for t in text]
+                    text=[t.format(placeholder) for t in text_list]
                 #print('loop vanilal text',text)
                 input_ids=tokenizer(
                     text,
@@ -157,6 +159,24 @@ def loop_vanilla(images: list,
                                 timesteps, 
                                 encoder_hidden_states,
                                 added_cond_kwargs=added_cond_kwargs).sample
+                
+                if negative_token:
+                    negative_text=[t.format(NEGATIVE_PLACEHOLDER) for t in text_list]
+                    negative_input_ids=tokenizer(
+                    negative_text,
+                    padding="max_length",
+                    truncation=True,
+                    max_length=tokenizer.model_max_length,
+                    return_tensors="pt",
+                    ).input_ids.to(device=accelerator.device)
+                    negative_encoder_hidden_states=text_encoder(negative_input_ids)[0]
+
+                    negative_noise_pred=unet(noisy_latents, 
+                                timesteps, 
+                                negative_encoder_hidden_states,
+                                added_cond_kwargs=added_cond_kwargs).sample
+                    
+                    noise_pred=negative_noise_pred+ 5.0* (noise_pred-negative_noise_pred)
                 
                 loss = F.mse_loss(noise_pred.float(), noise.float(), reduction="mean")
 
@@ -337,6 +357,8 @@ def loop_general(images: list,
         token_ids=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)
     else:
         token_ids=[tokenizer.encode(v, add_special_tokens=False) for v in token_dict.values()]
+    if negative_token:
+        token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False))
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
@@ -361,13 +383,13 @@ def loop_general(images: list,
                 timesteps = timesteps.long()
 
                 noisy_latents = scheduler.add_noise(latents, noise, timesteps)
-                text=sample(text_prompt_list,bsz)
+                text_list=sample(text_prompt_list,bsz)
                 if len(token_dict)>0:
                     for count,time_key in enumerate(timesteps.long().detach().tolist()):
-                        text[count]=text[count].format(token_dict[time_key])
+                        text[count]=text_list[count].format(token_dict[time_key])
                 else:
                     placeholder=PLACEHOLDER
-                    text=[t.format(placeholder) for t in text]
+                    text=[t.format(placeholder) for t in text_list]
                 #print('loop general text',text)
                 if training_method==T5_UNET or training_method==LLAMA_UNET:
                     text_input = tokenizer(
@@ -408,6 +430,50 @@ def loop_general(images: list,
                     model_pred = model_pred.chunk(2, dim=1)[0]
                 else:
                     model_pred = vis(noisy_latents, timestep=timesteps, encoder_hidden_states=encoder_hidden_states).sample
+
+                if negative_token:
+                    negative_text=[t.format(NEGATIVE_PLACEHOLDER) for t in text_list]
+                    if training_method==T5_UNET or training_method==LLAMA_UNET:
+                        negative_text_input = tokenizer(
+                            negative_text, 
+                            padding="max_length", 
+                            max_length=max_length, 
+                            return_tensors="pt", 
+                            truncation=True,
+                        ).input_ids.to(device)
+                    elif training_method==T5_TRANSFORMER:
+                        negative_text_input = tokenizer(
+                            negative_text, 
+                            padding="max_length", 
+                            max_length=max_length, 
+                            add_special_tokens=True,
+                            return_tensors="pt", 
+                            truncation=True,
+                        ).to(device)
+                    if training_method==T5_UNET:
+                        negative_encoder_hidden_states_pre = text_encoder(negative_text_input)[0]
+                        negative_encoder_hidden_states = adapter(negative_encoder_hidden_states_pre).sample
+                    elif training_method==T5_TRANSFORMER:
+                        negative_prompt_attention_mask = negative_text_input.attention_mask
+                        negative_encoder_hidden_states_pre = text_encoder(negative_text_input.input_ids, attention_mask=negative_prompt_attention_mask)[0]
+                        negative_encoder_hidden_states = adapter(negative_encoder_hidden_states_pre).sample
+                    elif training_method==LLAMA_UNET:
+                        negative_encoder_hidden_states_pre = text_encoder(negative_text_input, output_hidden_states=True).hidden_states[-1]
+                        negative_encoder_hidden_states = adapter(negative_encoder_hidden_states_pre).sample
+
+                    if training_method==T5_TRANSFORMER:
+                        negative_model_pred=vis(
+                        noisy_latents, 
+                        encoder_hidden_states=negative_encoder_hidden_states,
+                        encoder_attention_mask=negative_prompt_attention_mask,
+                        timestep=timesteps, 
+                        added_cond_kwargs={"resolution": None, "aspect_ratio": None},
+                        ).sample
+                        negative_model_pred = negative_model_pred.chunk(2, dim=1)[0]
+                    else:
+                        negative_model_pred = vis(noisy_latents, timestep=timesteps, encoder_hidden_states=negative_encoder_hidden_states).sample
+                    
+                    model_pred=negative_model_pred* 5.0*(model_pred-negative_model_pred)
 
                 loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")            
                 accelerator.backward(loss)
