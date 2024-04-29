@@ -18,6 +18,7 @@ import numpy as np
 import random
 import wandb
 import re
+import datetime
 
 def clean_string(input_string):
     # Remove all numbers
@@ -246,7 +247,11 @@ def main(args):
 
 if __name__=='__main__':
     print_details()
+    start_time = datetime.now()
     args=parser.parse_args()
     print(args)
     main(args)
+    end_time = datetime.now()
+    time_taken = end_time - start_time
+    print("Time taken:", time_taken)
     print("all done :)")
