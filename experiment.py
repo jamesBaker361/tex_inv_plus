@@ -168,7 +168,8 @@ def train_and_evaluate_one_sample_vanilla(
                 scheduler_type="UniPCMultistepScheduler",
                 long_evaluation_prompt_list:list=[],
                 negative_token:bool=False,
-                spare_token:bool=False
+                spare_token:bool=False,
+                spare_lambda:float=0.01
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -213,7 +214,8 @@ def train_and_evaluate_one_sample_vanilla(
                 lr_num_cycles,
                 max_grad_norm,
                 negative_token,
-                spare_token
+                spare_token,
+                spare_lambda
     )
     sample_token=PLACEHOLDER
     if spare_token:
@@ -282,7 +284,8 @@ def train_and_evaluate_one_sample(
                 scheduler_type="UniPCMultistepScheduler",
                 long_evaluation_prompt_list:list=[],
                 negative_token:bool=False,
-                spare_token:bool=False):
+                spare_token:bool=False,
+                spare_lambda:float=0.01):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
@@ -335,7 +338,8 @@ def train_and_evaluate_one_sample(
                 lr_num_cycles,
                 max_grad_norm,
                 negative_token,
-                spare_token)
+                spare_token,
+                spare_lambda)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(sample_token),

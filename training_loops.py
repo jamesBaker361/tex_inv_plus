@@ -35,7 +35,8 @@ def loop_vanilla(images: list,
                 lr_num_cycles:int=1,
                 max_grad_norm:float=1.0,
                 negative_token:bool=False,
-                spare_token:bool=False
+                spare_token:bool=False,
+                spare_lambda:float=0.01
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -277,7 +278,8 @@ def loop_general(images: list,
                 lr_num_cycles:int=1,
                 max_grad_norm:float=1.0,
                 negative_token:bool=False,
-                spare_token:bool=False):
+                spare_token:bool=False,
+                spare_lambda:float=0.01):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -351,7 +353,7 @@ def loop_general(images: list,
                                     #generator=generator,
                                     token_dict=token_dict)[0]
         else:
-            val_prompt=val_prompt.format(PLACEHOLDER)
+            val_prompt=val_prompt.format(sample_token)
             print(val_prompt)
             img=pipeline(val_prompt, num_inference_steps=num_inference_steps, 
                          #generator=generator

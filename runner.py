@@ -64,6 +64,7 @@ parser.add_argument("--scheduler_type",type=str,default="UniPCMultistepScheduler
 parser.add_argument("--long_eval",action="store_true")
 parser.add_argument("--negative_token",action="store_true")
 parser.add_argument("--spare_token",action="store_true")
+parser.add_argument("--spare_lambda",type=float,default=0.01)
 
 
 
@@ -199,7 +200,8 @@ def main(args):
                 args.scheduler_type,
                 long_evaluation_prompt_list,
                 args.negative_token,
-                args.spare_token
+                args.spare_token,
+                args.spare_lambda
             )
 
         else:
@@ -227,7 +229,8 @@ def main(args):
                 args.scheduler_type,
                 long_evaluation_prompt_list,
                 args.negative_token,
-                args.spare_token
+                args.spare_token,
+                args.spare_lambda
              )
         for metric,value in metric_dict.items():
             aggregate_dict[metric].append(value)
