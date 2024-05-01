@@ -167,7 +167,8 @@ def train_and_evaluate_one_sample_vanilla(
                 max_grad_norm:float=1.0,
                 scheduler_type="UniPCMultistepScheduler",
                 long_evaluation_prompt_list:list=[],
-                negative_token:bool=False
+                negative_token:bool=False,
+                spare_token:bool=False
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -209,7 +210,8 @@ def train_and_evaluate_one_sample_vanilla(
                 lr_warmup_steps,
                 lr_num_cycles,
                 max_grad_norm,
-                negative_token
+                negative_token,
+                spare_token
     )
     if token_strategy==DEFAULT:
         evaluation_image_list=[
@@ -274,7 +276,8 @@ def train_and_evaluate_one_sample(
                 max_grad_norm:float=1.0,
                 scheduler_type="UniPCMultistepScheduler",
                 long_evaluation_prompt_list:list=[],
-                negative_token:bool=False):
+                negative_token:bool=False,
+                spare_token:bool=False):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
@@ -283,7 +286,8 @@ def train_and_evaluate_one_sample(
         os.environ["CUDA_LAUNCH_BLOCKING"]="1"
         pipeline=LlamaUnetPipeline(dtype=
                                    {"no":torch.float32,
-                                    "fp16":torch.float16}[accelerator.mixed_precision],
+                                    "fp16":torch.float16,
+                                    "bf16":torch.bfloat16}[accelerator.mixed_precision],
                                     scheduler_type=scheduler_type)
     #first_image=pipeline("thing")[0]
     #first_image.save(f"{training_method}_first.png")
@@ -319,7 +323,8 @@ def train_and_evaluate_one_sample(
                 lr_warmup_steps,
                 lr_num_cycles,
                 max_grad_norm,
-                negative_token)
+                negative_token,
+                spare_token)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(PLACEHOLDER),

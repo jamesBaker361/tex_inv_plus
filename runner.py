@@ -18,7 +18,8 @@ import numpy as np
 import random
 import wandb
 import re
-import datetime
+from datetime import datetime
+import time
 
 def clean_string(input_string):
     # Remove all numbers
@@ -62,6 +63,7 @@ parser.add_argument(
 parser.add_argument("--scheduler_type",type=str,default="UniPCMultistepScheduler")
 parser.add_argument("--long_eval",action="store_true")
 parser.add_argument("--negative_token",action="store_true")
+parser.add_argument("--spare_token",action="store_true")
 
 
 
@@ -196,7 +198,8 @@ def main(args):
                 args.max_grad_norm,
                 args.scheduler_type,
                 long_evaluation_prompt_list,
-                args.negative_token
+                args.negative_token,
+                args.spare_token
             )
 
         else:
@@ -223,7 +226,8 @@ def main(args):
                 args.max_grad_norm,
                 args.scheduler_type,
                 long_evaluation_prompt_list,
-                args.negative_token
+                args.negative_token,
+                args.spare_token
              )
         for metric,value in metric_dict.items():
             aggregate_dict[metric].append(value)
@@ -247,11 +251,12 @@ def main(args):
 
 if __name__=='__main__':
     print_details()
-    start_time = datetime.now()
+    start = time.time()
     args=parser.parse_args()
     print(args)
     main(args)
-    end_time = datetime.now()
-    time_taken = end_time - start_time
-    print("Time taken:", time_taken)
+    end=time.time()
+    seconds=end-start
+    hours=seconds/(60*60)
+    print(f"successful training :) time elapsed: {seconds} seconds = {hours} hours")
     print("all done :)")

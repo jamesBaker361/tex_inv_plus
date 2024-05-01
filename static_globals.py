@@ -4,7 +4,8 @@ IMAGES="images" #in text_to_image_lora this is aka pixel_values
 PRIOR_IMAGES="prior_images"
 PRIOR_TEXT_INPUT_IDS="prior_text_input_ids"
 TEXT_PROMPT="text_prompt"
-PLACEHOLDER="<S>"
+PLACEHOLDER="<KZ>"
+SPARE_PLACEHOLDER="<YQ>"
 NEGATIVE_PLACEHOLDER="<XJ>"
 
 VANILLA="vanilla"
