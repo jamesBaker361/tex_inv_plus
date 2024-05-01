@@ -108,7 +108,7 @@ def loop_vanilla(images: list,
     else:
         token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
     if negative_token:
-        token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False))
+        token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False)[0])
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
@@ -358,7 +358,7 @@ def loop_general(images: list,
     else:
         token_ids=[tokenizer.encode(v, add_special_tokens=False) for v in token_dict.values()]
     if negative_token:
-        token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False))
+        token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False)[0])
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
@@ -491,8 +491,8 @@ def loop_general(images: list,
 
                 # Let's make sure we don't update any embedding weights besides the newly added token
                 index_no_updates = torch.ones((len(tokenizer),), dtype=torch.bool)
-                index_no_updates[min(token_ids) : max(token_ids) + 1] = False
-
+                for t in token_ids:
+                    index_no_updates[t]=False
                 with torch.no_grad():
                     accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[
                         index_no_updates
