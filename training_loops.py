@@ -111,11 +111,15 @@ def loop_vanilla(images: list,
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
 
     if len(token_dict)==0:
-        token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
+        placeholder_id=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)[0]
+        token_ids=[placeholder_id]
     else:
-        token_ids=tokenizer.encode([v for v in token_dict.values()], add_special_tokens=False)
+        token_ids=[tokenizer.encode(v, add_special_tokens=False) for v in token_dict.values()]
     if negative_token:
         token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False)[0])
+    if spare_token:
+        spare_id=tokenizer.encode(SPARE_PLACEHOLDER,add_special_tokens=False)[0]
+        token_ids.append(spare_id)
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
@@ -366,11 +370,15 @@ def loop_general(images: list,
     orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.clone()
     print(f"tokenizer len {len(tokenizer)}")
     if len(token_dict)==0:
-        token_ids=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)
+        placeholder_id=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)[0]
+        token_ids=[placeholder_id]
     else:
         token_ids=[tokenizer.encode(v, add_special_tokens=False) for v in token_dict.values()]
     if negative_token:
         token_ids.append(tokenizer.encode(NEGATIVE_PLACEHOLDER,add_special_tokens=False)[0])
+    if spare_token:
+        spare_id=tokenizer.encode(SPARE_PLACEHOLDER,add_special_tokens=False)[0]
+        token_ids.append(spare_id)
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
