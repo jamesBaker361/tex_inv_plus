@@ -190,6 +190,8 @@ def train_and_evaluate_one_sample_vanilla(
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
     if negative_token:
         tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
+    if spare_token:
+        tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder)
     text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
         image_list,
@@ -213,9 +215,12 @@ def train_and_evaluate_one_sample_vanilla(
                 negative_token,
                 spare_token
     )
+    sample_token=PLACEHOLDER
+    if spare_token:
+        sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
     if token_strategy==DEFAULT:
         evaluation_image_list=[
-            pipeline(evaluation_prompt.format(PLACEHOLDER),
+            pipeline(evaluation_prompt.format(sample_token),
                     num_inference_steps=num_inference_steps,
                     negative_prompt=NEGATIVE,
                     safety_checker=None).images[0] for evaluation_prompt in evaluation_prompt_list
@@ -232,7 +237,7 @@ def train_and_evaluate_one_sample_vanilla(
     if len(long_evaluation_prompt_list)>0:
         if token_strategy==DEFAULT:
             long_evaluation_image_list=[
-                pipeline(evaluation_prompt.format(PLACEHOLDER),
+                pipeline(evaluation_prompt.format(sample_token),
                         num_inference_steps=num_inference_steps,
                         negative_prompt=NEGATIVE,
                         safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list
@@ -295,10 +300,16 @@ def train_and_evaluate_one_sample(
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
 
+    sample_token=PLACEHOLDER
+    if spare_token:
+        sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
     if negative_token:
         tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
+    if spare_token:
+        tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder)
     text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]
     #second_image.save(f"{training_method}_second.png")
@@ -327,7 +338,7 @@ def train_and_evaluate_one_sample(
                 spare_token)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
-            pipeline(evaluation_prompt.format(PLACEHOLDER),
+            pipeline(evaluation_prompt.format(sample_token),
                     num_inference_steps=num_inference_steps,
                     negative_prompts=NEGATIVE)[0] for evaluation_prompt in evaluation_prompt_list
         ]
@@ -343,7 +354,7 @@ def train_and_evaluate_one_sample(
     if len(long_evaluation_prompt_list)>0:
         if token_strategy==DEFAULT:
             long_evaluation_image_list=[
-                pipeline(evaluation_prompt.format(PLACEHOLDER),
+                pipeline(evaluation_prompt.format(sample_token),
                         num_inference_steps=num_inference_steps,
                         negative_prompts=NEGATIVE,
                         )[0] for evaluation_prompt in long_evaluation_prompt_list

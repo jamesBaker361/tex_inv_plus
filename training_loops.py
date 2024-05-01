@@ -104,6 +104,11 @@ def loop_vanilla(images: list,
     print(f"epochs {epochs}")
     orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.clone()
     print(f"tokenizer len {len(tokenizer)}")
+
+    sample_token=PLACEHOLDER
+    if spare_token:
+        sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+
     if len(token_dict)==0:
         token_ids=tokenizer.encode([PLACEHOLDER], add_special_tokens=False)
     else:
@@ -140,8 +145,7 @@ def loop_vanilla(images: list,
                     for count,time_key in enumerate(timesteps.long().detach().tolist()):
                         text[count]=text_list[count].format(token_dict[time_key])
                 else:
-                    placeholder=PLACEHOLDER
-                    text=[t.format(placeholder) for t in text_list]
+                    text=[t.format(sample_token) for t in text_list]
                 #print('loop vanilal text',text)
                 input_ids=tokenizer(
                     text,
@@ -212,7 +216,8 @@ def loop_vanilla(images: list,
 
                 # Let's make sure we don't update any embedding weights besides the newly added token
                 index_no_updates = torch.ones((len(tokenizer),), dtype=torch.bool)
-                index_no_updates[min(token_ids) : max(token_ids) + 1] = False
+                for t in token_ids:
+                    index_no_updates[t]=False
 
                 with torch.no_grad():
                     accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[
@@ -277,6 +282,9 @@ def loop_general(images: list,
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
     print(token_dict)
+    sample_token=PLACEHOLDER
+    if spare_token:
+        sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
     tracker=accelerator.get_tracker("wandb")
     for i in range(num_validation_images):
         wandb.define_metric(f"{training_method}_img_{i}",step_metric="custom_step")
@@ -390,8 +398,7 @@ def loop_general(images: list,
                     for count,time_key in enumerate(timesteps.long().detach().tolist()):
                         text[count]=text_list[count].format(token_dict[time_key])
                 else:
-                    placeholder=PLACEHOLDER
-                    text=[t.format(placeholder) for t in text_list]
+                    text=[t.format(sample_token) for t in text_list]
                 #print('loop general text',text)
                 if training_method==T5_UNET or training_method==LLAMA_UNET:
                     text_input = tokenizer(
