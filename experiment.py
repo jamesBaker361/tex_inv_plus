@@ -248,7 +248,8 @@ def train_and_evaluate_one_sample_vanilla(
                     negative_prompt=negative_prompt,
                     safety_checker=None).images[0] for evaluation_prompt in evaluation_prompt_list
             ]
-            split_metric_dict=get_metric_dict(evaluation_prompt_list, split_evaluation_image_list, image_list)
+            split_metric_dict=get_metric_dict(evaluation_prompt_list+evaluation_prompt_list
+                                              , split_evaluation_image_list, image_list)
     else:
         evaluation_image_list=[
             call_vanilla_with_dict(pipeline,evaluation_prompt,num_inference_steps=num_inference_steps,
@@ -275,7 +276,8 @@ def train_and_evaluate_one_sample_vanilla(
                         num_inference_steps=num_inference_steps,
                         negative_prompt=negative_prompt,
                         safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list]
-                split_long_metric_dict=get_metric_dict(long_evaluation_prompt_list,split_long_evaluation_image_list,image_list)
+                split_long_metric_dict=get_metric_dict(long_evaluation_prompt_list+long_evaluation_prompt_list
+                                                       ,split_long_evaluation_image_list,image_list)
         else:
             long_evaluation_image_list=[
                 call_vanilla_with_dict(pipeline,evaluation_prompt,num_inference_steps=num_inference_steps,
@@ -398,7 +400,7 @@ def train_and_evaluate_one_sample(
                     num_inference_steps=num_inference_steps,
                     negative_prompts=negative_prompt)[0] for evaluation_prompt in evaluation_prompt_list
             ]
-            split_metric_dict=get_metric_dict(evaluation_prompt_list, split_evaluation_image_list, image_list)
+            split_metric_dict=get_metric_dict(evaluation_prompt_list+evaluation_prompt_list, split_evaluation_image_list, image_list)
     else:
         evaluation_image_list=[
             pipeline(evaluation_prompt,
@@ -425,7 +427,8 @@ def train_and_evaluate_one_sample(
                         num_inference_steps=num_inference_steps,
                         negative_prompts=negative_prompt,
                         )[0] for evaluation_prompt in long_evaluation_prompt_list]
-                split_long_metric_dict=get_metric_dict(long_evaluation_prompt_list,split_long_evaluation_image_list,image_list)
+                split_long_metric_dict=get_metric_dict(long_evaluation_prompt_list+long_evaluation_prompt_list
+                                                       ,split_long_evaluation_image_list,image_list)
         else:
             long_evaluation_image_list=[
                 pipeline(evaluation_prompt,
