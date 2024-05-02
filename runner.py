@@ -162,7 +162,13 @@ def main(args):
     aggregate_dict={
         metric:[] for metric in METRIC_LIST
     }
+    split_aggregate_dict={
+        metric:[] for metric in METRIC_LIST
+    }
     long_aggregate_dict={
+        metric:[] for metric in METRIC_LIST
+    }
+    split_long_aggregate_dict={
         metric:[] for metric in METRIC_LIST
     }
     for j,row in enumerate(data):
@@ -175,7 +181,7 @@ def main(args):
         prior_class=clean_string(label)
         print(j,f"label: {label} prior_class: {prior_class}")
         if args.training_method==VANILLA:
-            pipeline,metric_dict,long_metric_dict,evaluation_image_list=train_and_evaluate_one_sample_vanilla(
+            pipeline,metric_dict,long_metric_dict,split_metric_dict,split_long_metric_dict,evaluation_image_list,long_evaluation_image_list,split_evaluation_image_list,split_long_evaluation_image_list=train_and_evaluate_one_sample_vanilla(
                 image_list,
                 prompt_list,
                 args.epochs,
@@ -205,7 +211,7 @@ def main(args):
             )
 
         else:
-             pipeline,metric_dict,long_metric_dict,evaluation_image_list=train_and_evaluate_one_sample(
+             pipeline,metric_dict,long_metric_dict,split_metric_dict,split_long_metric_dict,evaluation_image_list,long_evaluation_image_list,split_evaluation_image_list,split_long_evaluation_image_list=train_and_evaluate_one_sample(
                   image_list,
                 prompt_list,
                 args.epochs,
@@ -232,9 +238,9 @@ def main(args):
                 args.spare_token,
                 args.spare_lambda
              )
+        print(f"after {j} samples:")
         for metric,value in metric_dict.items():
             aggregate_dict[metric].append(value)
-        print(f"after {j} samples:")
         for metric,value_list in aggregate_dict.items():
             print(f"\t{metric} {np.mean(value_list)}")
         if len(long_metric_dict)>0:
@@ -244,12 +250,47 @@ def main(args):
             for metric,value_list in long_aggregate_dict.items():
                 print(f"\t{metric} {np.mean(value_list)}")
 
+        if len(split_metric_dict)>0:
+            print("split")
+            for metric,value in split_metric_dict.items():
+                split_aggregate_dict[metric].append(value)
+            for metric,value_list in split_aggregate_dict.items():
+                print(f"\t{metric} {np.mean(value_list)}")
+
+        if len(split_long_metric_dict)>0:
+            print("split long")
+            for metric,value in split_long_metric_dict.items():
+                split_long_aggregate_dict[metric].append(value)
+            for metric,value_list in split_long_aggregate_dict.items():
+                print(f"\t{metric} {np.mean(value_list)}")
+
         for i,image in enumerate(evaluation_image_list):
             os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
             path=f"{args.image_dir}/{label}/{args.training_method}/{i}.png"
             image.save(path)
             accelerator.log({
                 f"{label}/{args.training_method}_{i}":wandb.Image(path)
+            })
+        for i,image in enumerate(long_evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}_long/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}_long/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}_long/{args.training_method}_{i}":wandb.Image(path)
+            })
+        for i,image in enumerate(split_evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}_split/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}_split/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}_split/{args.training_method}_{i}":wandb.Image(path)
+            })
+        for i,image in enumerate(split_long_evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}_split_long/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}_split_long/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
             })
 
 if __name__=='__main__':
