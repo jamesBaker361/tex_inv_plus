@@ -225,31 +225,34 @@ def train_and_evaluate_one_sample_vanilla(
     long_evaluation_image_list=[]
     split_long_evaluation_image_list=[]
     sample_token=PLACEHOLDER
+    negative_prompt=NEGATIVE
+    if negative_token:
+        negative_prompt+=","+NEGATIVE_PLACEHOLDER
     if spare_token:
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(sample_token),
                     num_inference_steps=num_inference_steps,
-                    negative_prompt=NEGATIVE,
+                    negative_prompt=negative_prompt,
                     safety_checker=None).images[0] for evaluation_prompt in evaluation_prompt_list
         ]
         if spare_token:
             split_evaluation_image_list+=[pipeline(evaluation_prompt.format(PLACEHOLDER),
                     num_inference_steps=num_inference_steps,
-                    negative_prompt=NEGATIVE,
+                    negative_prompt=negative_prompt,
                     safety_checker=None).images[0] for evaluation_prompt in evaluation_prompt_list
             ]
             split_evaluation_image_list+=[pipeline(evaluation_prompt.format(SPARE_PLACEHOLDER),
                     num_inference_steps=num_inference_steps,
-                    negative_prompt=NEGATIVE,
+                    negative_prompt=negative_prompt,
                     safety_checker=None).images[0] for evaluation_prompt in evaluation_prompt_list
             ]
             split_metric_dict=get_metric_dict(evaluation_prompt_list, split_evaluation_image_list, image_list)
     else:
         evaluation_image_list=[
             call_vanilla_with_dict(pipeline,evaluation_prompt,num_inference_steps=num_inference_steps,
-                    negative_prompt=NEGATIVE,
+                    negative_prompt=negative_prompt,
                     safety_checker=None,token_dict=token_dict).images[0] for evaluation_prompt in evaluation_prompt_list
         ]
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
@@ -258,25 +261,25 @@ def train_and_evaluate_one_sample_vanilla(
             long_evaluation_image_list=[
                 pipeline(evaluation_prompt.format(sample_token),
                         num_inference_steps=num_inference_steps,
-                        negative_prompt=NEGATIVE,
+                        negative_prompt=negative_prompt,
                         safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list
             ]
             if spare_token:
                 split_long_evaluation_image_list+=[
                 pipeline(evaluation_prompt.format(PLACEHOLDER),
                         num_inference_steps=num_inference_steps,
-                        negative_prompt=NEGATIVE,
+                        negative_prompt=negative_prompt,
                         safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list]
                 split_long_evaluation_image_list+=[
                 pipeline(evaluation_prompt.format(SPARE_PLACEHOLDER),
                         num_inference_steps=num_inference_steps,
-                        negative_prompt=NEGATIVE,
+                        negative_prompt=negative_prompt,
                         safety_checker=None).images[0] for evaluation_prompt in long_evaluation_prompt_list]
                 split_long_metric_dict=get_metric_dict(long_evaluation_prompt_list,split_long_evaluation_image_list,image_list)
         else:
             long_evaluation_image_list=[
                 call_vanilla_with_dict(pipeline,evaluation_prompt,num_inference_steps=num_inference_steps,
-                        negative_prompt=NEGATIVE,
+                        negative_prompt=negative_prompt,
                         safety_checker=None,token_dict=token_dict).images[0] for evaluation_prompt in long_evaluation_prompt_list
             ]
         long_metric_dict=get_metric_dict(long_evaluation_prompt_list, long_evaluation_image_list,image_list)
@@ -371,60 +374,63 @@ def train_and_evaluate_one_sample(
                 spare_lambda)
     split_evaluation_image_list=[]
     split_metric_dict={}
+    long_metric_dict={}
+    split_long_metric_dict={}
+    long_evaluation_image_list=[]
+    split_long_evaluation_image_list=[]
+    negative_prompt=NEGATIVE
+    if negative_token:
+        negative_prompt+=","+NEGATIVE_PLACEHOLDER
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(sample_token),
                     num_inference_steps=num_inference_steps,
-                    negative_prompts=NEGATIVE)[0] for evaluation_prompt in evaluation_prompt_list
+                    negative_prompts=negative_prompt)[0] for evaluation_prompt in evaluation_prompt_list
         ]
         if spare_token:
             split_evaluation_image_list+=[
                 pipeline(evaluation_prompt.format(PLACEHOLDER),
                     num_inference_steps=num_inference_steps,
-                    negative_prompts=NEGATIVE)[0] for evaluation_prompt in evaluation_prompt_list
+                    negative_prompts=negative_prompt)[0] for evaluation_prompt in evaluation_prompt_list
             ]
             split_evaluation_image_list+=[
                 pipeline(evaluation_prompt.format(SPARE_PLACEHOLDER),
                     num_inference_steps=num_inference_steps,
-                    negative_prompts=NEGATIVE)[0] for evaluation_prompt in evaluation_prompt_list
+                    negative_prompts=negative_prompt)[0] for evaluation_prompt in evaluation_prompt_list
             ]
             split_metric_dict=get_metric_dict(evaluation_prompt_list, split_evaluation_image_list, image_list)
     else:
         evaluation_image_list=[
             pipeline(evaluation_prompt,
                     num_inference_steps=num_inference_steps,
-                    negative_prompts=NEGATIVE,token_dict=token_dict)[0] for evaluation_prompt in evaluation_prompt_list
+                    negative_prompts=negative_prompt,token_dict=token_dict)[0] for evaluation_prompt in evaluation_prompt_list
         ]
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
-    long_metric_dict={}
-    split_long_metric_dict={}
-    long_evaluation_image_list=[]
-    split_long_evaluation_image_list=[]
     if len(long_evaluation_prompt_list)>0:
         if token_strategy==DEFAULT:
             long_evaluation_image_list=[
                 pipeline(evaluation_prompt.format(sample_token),
                         num_inference_steps=num_inference_steps,
-                        negative_prompts=NEGATIVE,
+                        negative_prompts=negative_prompt,
                         )[0] for evaluation_prompt in long_evaluation_prompt_list
             ]
             if spare_token:
                 split_long_evaluation_image_list+=[
                 pipeline(evaluation_prompt.format(PLACEHOLDER),
                         num_inference_steps=num_inference_steps,
-                        negative_prompts=NEGATIVE,
+                        negative_prompts=negative_prompt,
                         )[0] for evaluation_prompt in long_evaluation_prompt_list]
                 split_long_evaluation_image_list+=[
                 pipeline(evaluation_prompt.format(SPARE_PLACEHOLDER),
                         num_inference_steps=num_inference_steps,
-                        negative_prompts=NEGATIVE,
+                        negative_prompts=negative_prompt,
                         )[0] for evaluation_prompt in long_evaluation_prompt_list]
                 split_long_metric_dict=get_metric_dict(long_evaluation_prompt_list,split_long_evaluation_image_list,image_list)
         else:
             long_evaluation_image_list=[
                 pipeline(evaluation_prompt,
                     num_inference_steps=num_inference_steps,
-                    negative_prompts=NEGATIVE,
+                    negative_prompts=negative_prompt,
                     token_dict=token_dict)[0] for evaluation_prompt in long_evaluation_prompt_list
             ]
         long_metric_dict=get_metric_dict(long_evaluation_prompt_list, long_evaluation_image_list,image_list)
