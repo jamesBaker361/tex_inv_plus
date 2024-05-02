@@ -13,6 +13,8 @@ from gpu import print_details
 from diffusers.optimization import get_scheduler
 import math
 
+cos = torch.nn.CosineSimilarity(dim=-1, eps=1e-6)
+
 def loop_vanilla(images: list,
                text_prompt_list:list,
                validation_prompt_list:list,
@@ -123,6 +125,7 @@ def loop_vanilla(images: list,
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
+        train_spare_loss=0.0
         for step,batch in enumerate(dataloader):
             batch_size=batch[IMAGES].shape[0]
             with accelerator.accumulate(*models):
@@ -207,6 +210,16 @@ def loop_vanilla(images: list,
                     prior_loss = F.mse_loss(prior_noise_pred.float(), prior_noise.float(), reduction="mean")
                     loss=loss+prior_loss
 
+                if spare_token:
+                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id))
+                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id))
+                    spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
+
+                    avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
+                    train_spare_loss+=avg_spare_loss.item()
+
+                    loss=loss+spare_loss
+
                 avg_loss = accelerator.gather(loss.repeat(batch_size)).mean()
                 train_loss += avg_loss.item()
                 # Backpropagate
@@ -230,7 +243,9 @@ def loop_vanilla(images: list,
                     ] = orig_embeds_params[index_no_updates]
             global_step += 1
             accelerator.log({f"train_loss": train_loss})
+            accelerator.log({"train_spare_loss":train_spare_loss})
             train_loss = 0.0
+            train_spare_loss=0.0
         '''if accelerator.is_main_process:
 
             generator = torch.Generator(device=accelerator.device)
@@ -494,7 +509,14 @@ def loop_general(images: list,
                     
                     model_pred=negative_model_pred* 5.0*(model_pred-negative_model_pred)
 
-                loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")            
+                loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")  
+                if spare_token:
+                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id))
+                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id))
+                    spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
+                    loss=loss+spare_loss
+
+                          
                 accelerator.backward(loss)
 
                 avg_loss = accelerator.gather(loss.repeat(batch_size)).mean()
