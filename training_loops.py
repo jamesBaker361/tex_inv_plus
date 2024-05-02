@@ -397,6 +397,7 @@ def loop_general(images: list,
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
+        train_spare_loss=0.0
         for step,batch in enumerate(dataloader):
             with accelerator.accumulate(*trainable_models):
                 # Latent preparation
@@ -515,6 +516,8 @@ def loop_general(images: list,
                     spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id))
                     spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
                     loss=loss+spare_loss
+                    avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
+                    train_spare_loss+=avg_spare_loss.item()
 
                           
                 accelerator.backward(loss)
@@ -540,7 +543,9 @@ def loop_general(images: list,
                     ] = orig_embeds_params[index_no_updates]
             global_step += 1
             accelerator.log({f"train_loss": train_loss})
+            accelerator.log({"train_spare_loss":train_spare_loss})
             train_loss = 0.0
+            train_spare_loss=0.0
         '''if accelerator.is_main_process:
             generator = torch.Generator()
             generator.manual_seed(seed)
