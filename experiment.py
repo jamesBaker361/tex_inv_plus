@@ -95,7 +95,7 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
                 current_count=0
     elif token_strategy==DEFAULT:
         tokenizer,text_encoder=prepare_textual_inversion(PLACEHOLDER, tokenizer, text_encoder)
-    print(f"tokenizer len {len(tokenizer)}")
+    print(f"prepare_from_token_strategy tokenizer len {len(tokenizer)}")
     return tokenizer,text_encoder,token_dict
 
 def get_metric_dict(evaluation_prompt_list:list, evaluation_image_list:list,image_list:list):
@@ -161,15 +161,15 @@ def train_and_evaluate_one_sample_vanilla(
         prior:bool,
         prior_class:str,
         lr:float,
-        lr_scheduler_type:str="constant",
-                lr_warmup_steps:int=500,
-                lr_num_cycles:int=1,
-                max_grad_norm:float=1.0,
-                scheduler_type="UniPCMultistepScheduler",
-                long_evaluation_prompt_list:list=[],
-                negative_token:bool=False,
-                spare_token:bool=False,
-                spare_lambda:float=0.01
+        lr_scheduler_type:str,
+                lr_warmup_steps:int,
+                lr_num_cycles:int,
+                max_grad_norm:float,
+                scheduler_type:str,
+                long_evaluation_prompt_list:list,
+                negative_token:bool,
+                spare_token:bool,
+                spare_lambda:float
 ):
     pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
     text_encoder=pipeline.text_encoder
@@ -188,11 +188,13 @@ def train_and_evaluate_one_sample_vanilla(
         model.requires_grad_(False)
     
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
+    print("len tokenizer" ,len(tokenizer))
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
     if negative_token:
         tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
     if spare_token:
         tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder)
+    print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
         image_list,
@@ -311,15 +313,15 @@ def train_and_evaluate_one_sample(
         evaluation_prompt_list:list,
         train_adapter:bool,
         lr:float,
-        lr_scheduler_type:str="constant",
-                lr_warmup_steps:int=500,
-                lr_num_cycles:int=1,
-                max_grad_norm:float=1.0,
-                scheduler_type="UniPCMultistepScheduler",
-                long_evaluation_prompt_list:list=[],
-                negative_token:bool=False,
-                spare_token:bool=False,
-                spare_lambda:float=0.01):
+        lr_scheduler_type:str,
+                lr_warmup_steps:int,
+                lr_num_cycles:int,
+                max_grad_norm:float,
+                scheduler_type:str,
+                long_evaluation_prompt_list:list,
+                negative_token:bool,
+                spare_token:bool,
+                spare_lambda:float):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
@@ -342,11 +344,13 @@ def train_and_evaluate_one_sample(
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
 
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
+    print("len tokenizer", len(tokenizer))
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
     if negative_token:
         tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
     if spare_token:
         tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder)
+    print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]
     #second_image.save(f"{training_method}_second.png")
