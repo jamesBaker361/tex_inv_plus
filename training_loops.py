@@ -28,17 +28,17 @@ def loop_vanilla(images: list,
                 noise_offset:float,
                 batch_size:int,
                 size:int,
-                token_dict:dict={},
-                prior:bool=False,
-                prior_class:str="",
-                lr:float=0.04,
-                lr_scheduler_type:str="constant",
-                lr_warmup_steps:int=500,
-                lr_num_cycles:int=1,
-                max_grad_norm:float=1.0,
-                negative_token:bool=False,
-                spare_token:bool=False,
-                spare_lambda:float=0.01
+                token_dict:dict,
+                prior:bool,
+                prior_class:str,
+                lr:float,
+                lr_scheduler_type:str,
+                lr_warmup_steps:int,
+                lr_num_cycles:int,
+                max_grad_norm:float,
+                negative_token:bool,
+                spare_token:bool,
+                spare_lambda:float
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -211,8 +211,8 @@ def loop_vanilla(images: list,
                     loss=loss+prior_loss
 
                 if spare_token:
-                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id))
-                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id))
+                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device).to(weight_dtype))
+                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device).to(weight_dtype))
                     spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
 
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
@@ -289,16 +289,16 @@ def loop_general(images: list,
                 batch_size:int,
                 size:int,
                 training_method:str,
-                token_dict:dict={},
-                train_adapter:bool=False,
-                lr:float=0.04,
-                lr_scheduler_type:str="constant",
-                lr_warmup_steps:int=500,
-                lr_num_cycles:int=1,
-                max_grad_norm:float=1.0,
-                negative_token:bool=False,
-                spare_token:bool=False,
-                spare_lambda:float=0.01):
+                token_dict:dict,
+                train_adapter:bool,
+                lr:float,
+                lr_scheduler_type:str,
+                lr_warmup_steps:int,
+                lr_num_cycles:int,
+                max_grad_norm:float,
+                negative_token:bool,
+                spare_token:bool,
+                spare_lambda:float):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -512,8 +512,8 @@ def loop_general(images: list,
 
                 loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")  
                 if spare_token:
-                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id))
-                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id))
+                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device).to(weight_dtype))
+                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device).to(weight_dtype))
                     spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
                     loss=loss+spare_loss
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
