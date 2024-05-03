@@ -211,8 +211,8 @@ def loop_vanilla(images: list,
                     loss=loss+prior_loss
 
                 if spare_token:
-                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device).to(weight_dtype))
-                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device).to(weight_dtype))
+                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device))
+                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device))
                     spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
 
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
@@ -512,8 +512,8 @@ def loop_general(images: list,
 
                 loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")  
                 if spare_token:
-                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device).to(weight_dtype))
-                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device).to(weight_dtype))
+                    placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device))
+                    spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device))
                     spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
                     loss=loss+spare_loss
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
