@@ -213,7 +213,7 @@ def loop_vanilla(images: list,
                 if spare_token:
                     placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device))
                     spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device))
-                    spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
+                    spare_loss=spare_lambda*(cos(spare_embedding,placeholder_embedding)**2)
 
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
                     train_spare_loss+=avg_spare_loss.item()
@@ -514,7 +514,7 @@ def loop_general(images: list,
                 if spare_token:
                     placeholder_embedding=text_encoder.get_input_embeddings()(torch.tensor(placeholder_id).to(device))
                     spare_embedding=text_encoder.get_input_embeddings()(torch.tensor(spare_id).to(device))
-                    spare_loss=spare_lambda*cos(spare_embedding,placeholder_embedding)
+                    spare_loss=spare_lambda*(cos(spare_embedding,placeholder_embedding)**2)
                     loss=loss+spare_loss
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
                     train_spare_loss+=avg_spare_loss.item()
