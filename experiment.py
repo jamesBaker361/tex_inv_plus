@@ -35,7 +35,7 @@ def generate_random_string(length=3):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
-def prepare_textual_inversion(placeholder:str, tokenizer:object,text_encoder:object,initializer_token:str):
+def prepare_textual_inversion(placeholder:str, tokenizer:object,text_encoder:object,initializer_token:str,scale=1.0):
     placeholder_tokens=[placeholder]
     tokenizer.add_tokens(placeholder_tokens)
     token_ids = tokenizer.encode(initializer_token, add_special_tokens=False)
@@ -49,7 +49,7 @@ def prepare_textual_inversion(placeholder:str, tokenizer:object,text_encoder:obj
     token_embeds = text_encoder.get_input_embeddings().weight.data
     with torch.no_grad():
         for token_id in placeholder_token_ids:
-            token_embeds[token_id] = token_embeds[initializer_token_id].clone()
+            token_embeds[token_id] = scale*token_embeds[initializer_token_id].clone()
 
     text_encoder.get_input_embeddings().requires_grad_(True)
     return tokenizer,text_encoder
@@ -191,7 +191,7 @@ def train_and_evaluate_one_sample_vanilla(
     print("len tokenizer" ,len(tokenizer))
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder,initializer_token)
     if negative_token:
-        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,"ugly")
+        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,initializer_token,-1.0)
     if spare_token:
         tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder,initializer_token)
     print("len tokenizer" ,len(tokenizer))
@@ -348,7 +348,7 @@ def train_and_evaluate_one_sample(
     print("len tokenizer", len(tokenizer))
     tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder,initializer_token)
     if negative_token:
-        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,"ugly")
+        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,initializer_token,-1.0)
     if spare_token:
         tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder,initializer_token)
     print("len tokenizer" ,len(tokenizer))
