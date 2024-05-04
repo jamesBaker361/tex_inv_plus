@@ -569,7 +569,13 @@ def loop_general(images: list,
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
+    accelerator.free_memory()
+    torch.cuda.empty_cache()
+    gc.collect()
     del optimizer,dataloader,lr_scheduler
+    accelerator.free_memory()
+    torch.cuda.empty_cache()
+    gc.collect()
     return pipeline
 
 
