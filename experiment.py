@@ -35,7 +35,7 @@ def generate_random_string(length=3):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
-def prepare_textual_inversion(placeholder:str, tokenizer:object,text_encoder:object,initializer_token:str="thing"):
+def prepare_textual_inversion(placeholder:str, tokenizer:object,text_encoder:object,initializer_token:str):
     placeholder_tokens=[placeholder]
     tokenizer.add_tokens(placeholder_tokens)
     token_ids = tokenizer.encode(initializer_token, add_special_tokens=False)
@@ -54,7 +54,7 @@ def prepare_textual_inversion(placeholder:str, tokenizer:object,text_encoder:obj
     text_encoder.get_input_embeddings().requires_grad_(True)
     return tokenizer,text_encoder
 
-def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,tokenizer,text_encoder):
+def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,tokenizer,text_encoder,initializer_token:str):
     token_set=set()
     token_dict={}
     #print("prepare_from_token_strategy",timesteps)
@@ -69,7 +69,7 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
             token_set.add(new_token)
             #print(t)
             token_dict[t]="<{}>".format(new_token)
-            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder)
+            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder,initializer_token)
     elif token_strategy==HALF or token_strategy==THIRD:
         n_tokens={
             HALF:2,
@@ -85,7 +85,7 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
         token_set.add(current_token)
         for count,t in enumerate(timesteps.detach().tolist()):
             token_dict[t]="<{}>".format(current_token)
-            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(current_token), tokenizer, text_encoder)
+            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(current_token), tokenizer, text_encoder,initializer_token)
             current_count+=1
             if current_count>steps_per_token:
                 current_token=generate_random_string()
@@ -94,7 +94,7 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
                 token_set.add(current_token)
                 current_count=0
     elif token_strategy==DEFAULT:
-        tokenizer,text_encoder=prepare_textual_inversion(PLACEHOLDER, tokenizer, text_encoder)
+        tokenizer,text_encoder=prepare_textual_inversion(PLACEHOLDER, tokenizer, text_encoder,initializer_token)
     print(f"prepare_from_token_strategy tokenizer len {len(tokenizer)}")
     return tokenizer,text_encoder,token_dict
 
@@ -186,14 +186,14 @@ def train_and_evaluate_one_sample_vanilla(
     scheduler=pipeline.scheduler
     for model in [vae,unet,text_encoder]:
         model.requires_grad_(False)
-    
+    initializer_token=prior_class.split(" ")[-1]
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     print("len tokenizer" ,len(tokenizer))
-    tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder,initializer_token)
     if negative_token:
-        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
+        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,"ugly")
     if spare_token:
-        tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder)
+        tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder,initializer_token)
     print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
@@ -311,6 +311,7 @@ def train_and_evaluate_one_sample(
         batch_size:int,
         size:int,
         evaluation_prompt_list:list,
+        prior_class:str,
         train_adapter:bool,
         lr:float,
         lr_scheduler_type:str,
@@ -342,14 +343,14 @@ def train_and_evaluate_one_sample(
     sample_token=PLACEHOLDER
     if spare_token:
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
-
+    initializer_token=prior_class.split(" ")[-1]
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     print("len tokenizer", len(tokenizer))
-    tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder)
+    tokenizer,text_encoder,token_dict=prepare_from_token_strategy(timesteps,token_strategy,tokenizer,text_encoder,initializer_token)
     if negative_token:
-        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder)
+        tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,"ugly")
     if spare_token:
-        tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder)
+        tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder,initializer_token)
     print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]

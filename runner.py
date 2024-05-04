@@ -226,6 +226,7 @@ def main(args):
                 args.batch_size,
                 args.size,
                 evaluation_prompt_list,
+                args.prior_class,
                 args.train_adapter,
                 args.lr,
                 args.lr_scheduler_type,
