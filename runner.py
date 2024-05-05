@@ -150,7 +150,7 @@ def main(args):
     args.lr = (
             args.lr * args.gradient_accumulation_steps * args.batch_size * accelerator.num_processes
         )
-    accelerator.init_trackers(project_name="text_inv", config=vars(args))
+    accelerator.init_trackers(project_name="text_inv_hp_search", config=vars(args))
     if args.testing:
         #prompt_list= prompt_list[:2]
         evaluation_prompt_list=evaluation_prompt_list[:2]
@@ -247,6 +247,9 @@ def main(args):
             accelerator.log({
                 metric:np.mean(value_list)
             })
+            accelerator.log({
+                f"{args.training_method}_{metric}":np.mean(value_list)
+            })
         if len(long_metric_dict)>0:
             print("long stuff")
             for metric,value in long_metric_dict.items():
@@ -255,6 +258,9 @@ def main(args):
                 print(f"\t{metric} {np.mean(value_list)}")
                 accelerator.log({
                     "long_"+metric:np.mean(value_list)
+                })
+                accelerator.log({
+                f"long_{args.training_method}_{metric}":np.mean(value_list)
                 })
 
         if len(split_metric_dict)>0:
@@ -266,6 +272,9 @@ def main(args):
                 accelerator.log({
                     "split_"+metric:np.mean(value_list)
                 })
+                accelerator.log({
+                f"split_{args.training_method}_{metric}":np.mean(value_list)
+                })
 
         if len(split_long_metric_dict)>0:
             print("split long")
@@ -275,6 +284,9 @@ def main(args):
                 print(f"\t{metric} {np.mean(value_list)}")
                 accelerator.log({
                     "split_long_"+metric:np.mean(value_list)
+                })
+                accelerator.log({
+                f"split_long_{args.training_method}_{metric}":np.mean(value_list)
                 })
 
         for i,image in enumerate(evaluation_image_list):
