@@ -244,12 +244,18 @@ def main(args):
             aggregate_dict[metric].append(value)
         for metric,value_list in aggregate_dict.items():
             print(f"\t{metric} {np.mean(value_list)}")
+            accelerator.log({
+                metric:np.mean(value_list)
+            })
         if len(long_metric_dict)>0:
             print("long stuff")
             for metric,value in long_metric_dict.items():
                 long_aggregate_dict[metric].append(value)
             for metric,value_list in long_aggregate_dict.items():
                 print(f"\t{metric} {np.mean(value_list)}")
+                accelerator.log({
+                    "long_"+metric:np.mean(value_list)
+                })
 
         if len(split_metric_dict)>0:
             print("split")
@@ -257,6 +263,9 @@ def main(args):
                 split_aggregate_dict[metric].append(value)
             for metric,value_list in split_aggregate_dict.items():
                 print(f"\t{metric} {np.mean(value_list)}")
+                accelerator.log({
+                    "split_"+metric:np.mean(value_list)
+                })
 
         if len(split_long_metric_dict)>0:
             print("split long")
@@ -264,6 +273,9 @@ def main(args):
                 split_long_aggregate_dict[metric].append(value)
             for metric,value_list in split_long_aggregate_dict.items():
                 print(f"\t{metric} {np.mean(value_list)}")
+                accelerator.log({
+                    "split_long_"+metric:np.mean(value_list)
+                })
 
         for i,image in enumerate(evaluation_image_list):
             os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
