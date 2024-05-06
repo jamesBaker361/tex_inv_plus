@@ -240,9 +240,56 @@ def main(args):
                 args.spare_token,
                 args.spare_lambda
              )
-    print(f"after {j} samples:")
-    for metric,value in metric_dict.items():
-        aggregate_dict[metric].append(value)
+        print(f"after {j} samples:")
+        for metric,value in metric_dict.items():
+            aggregate_dict[metric].append(value)
+            print(f"\t{metric} {value}")
+        if len(long_metric_dict)>0:
+            print("long stuff")
+            for metric,value in long_metric_dict.items():
+                long_aggregate_dict[metric].append(value)
+                print(f"\t{metric} {value}")
+
+        if len(split_metric_dict)>0:
+            print("split")
+            for metric,value in split_metric_dict.items():
+                split_aggregate_dict[metric].append(value)
+                print(f"\t{metric} {value}")
+
+        if len(split_long_metric_dict)>0:
+            print("split long")
+            for metric,value in split_long_metric_dict.items():
+                split_long_aggregate_dict[metric].append(value)
+                print(f"\t{metric} {value}")
+
+        for i,image in enumerate(evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}/{args.training_method}_{i}":wandb.Image(path)
+            })
+        for i,image in enumerate(long_evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}_long/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}_long/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}_long/{args.training_method}_{i}":wandb.Image(path)
+            })
+        for i,image in enumerate(split_evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}_split/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}_split/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}_split/{args.training_method}_{i}":wandb.Image(path)
+            })
+        for i,image in enumerate(split_long_evaluation_image_list):
+            os.makedirs(f"{args.image_dir}/{label}_split_long/{args.training_method}/",exist_ok=True)
+            path=f"{args.image_dir}/{label}_split_long/{args.training_method}/{i}.png"
+            image.save(path)
+            accelerator.log({
+                f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
+            })
     for metric,value_list in aggregate_dict.items():
         print(f"\t{metric} {np.mean(value_list)}")
         accelerator.log({
@@ -251,72 +298,29 @@ def main(args):
         accelerator.log({
             f"{args.training_method}_{metric}":np.mean(value_list)
         })
-    if len(long_metric_dict)>0:
-        print("long stuff")
-        for metric,value in long_metric_dict.items():
-            long_aggregate_dict[metric].append(value)
-        for metric,value_list in long_aggregate_dict.items():
-            print(f"\t{metric} {np.mean(value_list)}")
-            accelerator.log({
-                "long_"+metric:np.mean(value_list)
-            })
-            accelerator.log({
-            f"long_{args.training_method}_{metric}":np.mean(value_list)
-            })
-
-    if len(split_metric_dict)>0:
-        print("split")
-        for metric,value in split_metric_dict.items():
-            split_aggregate_dict[metric].append(value)
-        for metric,value_list in split_aggregate_dict.items():
-            print(f"\t{metric} {np.mean(value_list)}")
-            accelerator.log({
-                "split_"+metric:np.mean(value_list)
-            })
-            accelerator.log({
-            f"split_{args.training_method}_{metric}":np.mean(value_list)
-            })
-
-    if len(split_long_metric_dict)>0:
-        print("split long")
-        for metric,value in split_long_metric_dict.items():
-            split_long_aggregate_dict[metric].append(value)
-        for metric,value_list in split_long_aggregate_dict.items():
-            print(f"\t{metric} {np.mean(value_list)}")
-            accelerator.log({
-                "split_long_"+metric:np.mean(value_list)
-            })
-            accelerator.log({
-            f"split_long_{args.training_method}_{metric}":np.mean(value_list)
-            })
-
-    for i,image in enumerate(evaluation_image_list):
-        os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
-        path=f"{args.image_dir}/{label}/{args.training_method}/{i}.png"
-        image.save(path)
+    for metric,value_list in long_aggregate_dict.items():
+        print(f"\t{metric} {np.mean(value_list)}")
         accelerator.log({
-            f"{label}/{args.training_method}_{i}":wandb.Image(path)
+            "long_"+metric:np.mean(value_list)
         })
-    for i,image in enumerate(long_evaluation_image_list):
-        os.makedirs(f"{args.image_dir}/{label}_long/{args.training_method}/",exist_ok=True)
-        path=f"{args.image_dir}/{label}_long/{args.training_method}/{i}.png"
-        image.save(path)
         accelerator.log({
-            f"{label}_long/{args.training_method}_{i}":wandb.Image(path)
+        f"long_{args.training_method}_{metric}":np.mean(value_list)
         })
-    for i,image in enumerate(split_evaluation_image_list):
-        os.makedirs(f"{args.image_dir}/{label}_split/{args.training_method}/",exist_ok=True)
-        path=f"{args.image_dir}/{label}_split/{args.training_method}/{i}.png"
-        image.save(path)
+    for metric,value_list in split_aggregate_dict.items():
+        print(f"\t{metric} {np.mean(value_list)}")
         accelerator.log({
-            f"{label}_split/{args.training_method}_{i}":wandb.Image(path)
+            "split_"+metric:np.mean(value_list)
         })
-    for i,image in enumerate(split_long_evaluation_image_list):
-        os.makedirs(f"{args.image_dir}/{label}_split_long/{args.training_method}/",exist_ok=True)
-        path=f"{args.image_dir}/{label}_split_long/{args.training_method}/{i}.png"
-        image.save(path)
         accelerator.log({
-            f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
+        f"split_{args.training_method}_{metric}":np.mean(value_list)
+        })
+    for metric,value_list in split_long_aggregate_dict.items():
+        print(f"\t{metric} {np.mean(value_list)}")
+        accelerator.log({
+            "split_long_"+metric:np.mean(value_list)
+        })
+        accelerator.log({
+        f"split_long_{args.training_method}_{metric}":np.mean(value_list)
         })
 
 if __name__=='__main__':
