@@ -23,13 +23,20 @@ from numpy.linalg import norm
 import gc
 from aesthetic_reward import get_aesthetic_scorer
 from custom_pipelines import T5UnetPipeline,T5TransformerPipeline,LlamaUnetPipeline
+from transformers import Blip2Processor, Blip2ForConditionalGeneration,pipeline,Blip2Model
+from PIL import Image
+from experiment_helpers.measuring import get_metric_dict
+from experiment_helpers.static_globals import *
 
 
-def cos_sim(vector_i,vector_j)->float:
-    return np.dot(vector_i,vector_j)/(norm(vector_i)*norm(vector_j))
 
 def is_real_word(word):
     return word.lower() in words.words()
+
+def get_caption(image:Image,blip_processor: Blip2Processor,blip_conditional_gen: Blip2ForConditionalGeneration):
+    caption_inputs = blip_processor(image, "", return_tensors="pt")
+    caption_out=blip_conditional_gen.generate(**caption_inputs)
+    return blip_processor.decode(caption_out[0],skip_special_tokens=True).strip()
 
 def generate_random_string(length=3):
     characters = string.ascii_letters + string.digits
@@ -97,50 +104,6 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
         tokenizer,text_encoder=prepare_textual_inversion(PLACEHOLDER, tokenizer, text_encoder,initializer_token)
     print(f"prepare_from_token_strategy tokenizer len {len(tokenizer)}")
     return tokenizer,text_encoder,token_dict
-
-def get_metric_dict(evaluation_prompt_list:list, evaluation_image_list:list,image_list:list):
-    metric_dict={}
-    clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-    clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    clip_inputs=clip_processor(text=evaluation_prompt_list, images=evaluation_image_list+image_list, return_tensors="pt", padding=True)
-
-    outputs = clip_model(**clip_inputs)
-    src_image_n=len(image_list)
-    text_embed_list=outputs.text_embeds.detach().numpy()
-    image_embed_list=outputs.image_embeds.detach().numpy()[:-src_image_n]
-    src_image_embed_list=outputs.image_embeds.detach().numpy()[-src_image_n:]
-    ir_model=image_reward.load("/scratch/jlb638/reward-blob",med_config="/scratch/jlb638/ImageReward/med_config.json")
-
-    identity_consistency_list=[]
-    target_similarity_list=[]
-    prompt_similarity_list=[]
-    for i in range(len(image_embed_list)):
-        image_embed=image_embed_list[i]
-        text_embed=text_embed_list[i]
-        for src_image_embed in src_image_embed_list:
-            target_similarity_list.append(cos_sim(image_embed,src_image_embed))
-        prompt_similarity_list.append(cos_sim(image_embed, text_embed))
-        for j in range(i+1, len(image_embed_list)):
-            #print(i,j)
-            vector_j=image_embed_list[j]
-            sim=cos_sim(image_embed,vector_j)
-            identity_consistency_list.append(sim)
-
-    metric_dict[IDENTITY_CONSISTENCY]=np.mean(identity_consistency_list)
-    metric_dict[TARGET_SIMILARITY]=np.mean(target_similarity_list)
-    metric_dict[PROMPT_SIMILARITY]=np.mean(prompt_similarity_list)
-    #for evaluation_image,evaluation_prompt in zip(evaluation_image_list, evaluation_prompt_list):
-    metric_dict[IMAGE_REWARD]=np.mean(
-        [ir_model.score(evaluation_prompt,evaluation_image) for evaluation_prompt,evaluation_image in zip(evaluation_prompt_list, evaluation_image_list) ]
-    )
-    aesthetic_scorer=get_aesthetic_scorer()
-    metric_dict[AESTHETIC_SCORE]=np.mean(
-        [aesthetic_scorer(evaluation_image).cpu().numpy()[0] for evaluation_image in evaluation_image_list]
-    )
-    for metric in METRIC_LIST:
-        if metric not in metric_dict:
-            metric_dict[metric]=0.0
-    return metric_dict
 
 
 def train_and_evaluate_one_sample_vanilla(

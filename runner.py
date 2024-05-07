@@ -13,6 +13,7 @@ from accelerate import Accelerator
 from gpu import print_details
 from datasets import load_dataset
 from static_globals import *
+from experiment_helpers.static_globals import *
 from experiment import train_and_evaluate_one_sample_vanilla, train_and_evaluate_one_sample
 import numpy as np
 import random
