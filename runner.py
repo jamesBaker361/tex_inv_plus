@@ -21,6 +21,7 @@ import wandb
 import re
 from datetime import datetime
 import time
+import gc
 
 def clean_string(input_string):
     # Remove all numbers
@@ -242,6 +243,13 @@ def main(args):
                 args.spare_token,
                 args.spare_lambda
              )
+        torch.cuda.empty_cache()
+        accelerator.free_memory()
+        gc.collect()
+        del pipeline
+        torch.cuda.empty_cache()
+        accelerator.free_memory()
+        gc.collect()
         print(f"after {j} samples:")
         for metric,value in metric_dict.items():
             aggregate_dict[metric].append(value)
@@ -292,9 +300,6 @@ def main(args):
             accelerator.log({
                 f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
             })
-        torch.cuda.empty_cache()
-        accelerator.free_memory()
-        del pipeline
     for metric,value_list in aggregate_dict.items():
         print(f"\t{metric} {np.mean(value_list)}")
         accelerator.log({
