@@ -213,6 +213,7 @@ def main(args):
             )
 
         else:
+             #return None,metric_dict,long_metric_dict,split_metric_dict,split_long_metric_dict,evaluation_image_list,long_evaluation_image_list,split_evaluation_image_list,split_long_evaluation_image_list
              pipeline,metric_dict,long_metric_dict,split_metric_dict,split_long_metric_dict,evaluation_image_list,long_evaluation_image_list,split_evaluation_image_list,split_long_evaluation_image_list=train_and_evaluate_one_sample(
                   image_list,
                 prompt_list,
@@ -291,6 +292,9 @@ def main(args):
             accelerator.log({
                 f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
             })
+        torch.cuda.empty_cache()
+        accelerator.free_memory()
+        del pipeline
     for metric,value_list in aggregate_dict.items():
         print(f"\t{metric} {np.mean(value_list)}")
         accelerator.log({
@@ -299,30 +303,33 @@ def main(args):
         accelerator.log({
             f"{args.training_method}_{metric}":np.mean(value_list)
         })
-    for metric,value_list in long_aggregate_dict.items():
-        print(f"\t{metric} {np.mean(value_list)}")
-        accelerator.log({
-            "long_"+metric:np.mean(value_list)
-        })
-        accelerator.log({
-        f"long_{args.training_method}_{metric}":np.mean(value_list)
-        })
-    for metric,value_list in split_aggregate_dict.items():
-        print(f"\t{metric} {np.mean(value_list)}")
-        accelerator.log({
-            "split_"+metric:np.mean(value_list)
-        })
-        accelerator.log({
-        f"split_{args.training_method}_{metric}":np.mean(value_list)
-        })
-    for metric,value_list in split_long_aggregate_dict.items():
-        print(f"\t{metric} {np.mean(value_list)}")
-        accelerator.log({
-            "split_long_"+metric:np.mean(value_list)
-        })
-        accelerator.log({
-        f"split_long_{args.training_method}_{metric}":np.mean(value_list)
-        })
+    if args.long_eval:
+        for metric,value_list in long_aggregate_dict.items():
+            print(f"\t{metric} {np.mean(value_list)}")
+            accelerator.log({
+                "long_"+metric:np.mean(value_list)
+            })
+            accelerator.log({
+            f"long_{args.training_method}_{metric}":np.mean(value_list)
+            })
+    if args.spare_token:
+        for metric,value_list in split_aggregate_dict.items():
+            print(f"\t{metric} {np.mean(value_list)}")
+            accelerator.log({
+                "split_"+metric:np.mean(value_list)
+            })
+            accelerator.log({
+            f"split_{args.training_method}_{metric}":np.mean(value_list)
+            })
+    if args.long_eval and args.spare_token:
+        for metric,value_list in split_long_aggregate_dict.items():
+            print(f"\t{metric} {np.mean(value_list)}")
+            accelerator.log({
+                "split_long_"+metric:np.mean(value_list)
+            })
+            accelerator.log({
+            f"split_long_{args.training_method}_{metric}":np.mean(value_list)
+            })
 
 if __name__=='__main__':
     print_details()
