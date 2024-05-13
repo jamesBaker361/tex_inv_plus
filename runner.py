@@ -300,6 +300,7 @@ def main(args):
             accelerator.log({
                 f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
             })
+    print("after all samples")
     for metric,value_list in aggregate_dict.items():
         print(f"\t{metric} {np.mean(value_list)}")
         accelerator.log({
