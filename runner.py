@@ -22,6 +22,7 @@ import re
 from datetime import datetime
 import time
 import gc
+import datetime
 
 def clean_string(input_string):
     # Remove all numbers
@@ -338,6 +339,11 @@ def main(args):
             })
 
 if __name__=='__main__':
+    # Get current date and time
+    current_datetime = datetime.datetime.now()
+
+    # Print the current date and time
+    print("Current date and time:", current_datetime)
     print_details()
     start = time.time()
     args=parser.parse_args()
