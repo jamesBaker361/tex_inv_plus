@@ -9,7 +9,7 @@ from inference import call_vanilla_with_dict
 from random import sample
 from custom_pipelines import T5UnetPipeline
 import random
-from gpu import print_details
+from experiment_helpers.measuring import get_metric_dict
 from diffusers.optimization import get_scheduler
 import math
 
@@ -46,8 +46,6 @@ def loop_vanilla(images: list,
     print(f"begin training method  vanilla on device {accelerator.device}")
     print(token_dict)
     tracker=accelerator.get_tracker("wandb")
-    for i in range(num_validation_images):
-        wandb.define_metric(f"vanilla_img_{i}",step_metric="custom_step")
     tokenizer=pipeline.tokenizer
     vae=pipeline.vae
     text_encoder=pipeline.text_encoder
@@ -111,6 +109,9 @@ def loop_vanilla(images: list,
     sample_token=PLACEHOLDER
     if spare_token:
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+    negative_prompt=NEGATIVE
+    if negative_token:
+        negative_prompt+=","+NEGATIVE_PLACEHOLDER
 
     if len(token_dict)==0:
         placeholder_id=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)[0]
@@ -123,6 +124,7 @@ def loop_vanilla(images: list,
         spare_id=tokenizer.encode(SPARE_PLACEHOLDER,add_special_tokens=False)[0]
         token_ids.append(spare_id)
     print("token_ids",token_ids)
+    
     for e in range(start_epoch, epochs):
         train_loss = 0.0
         train_spare_loss=0.0
@@ -246,26 +248,39 @@ def loop_vanilla(images: list,
             accelerator.log({"train_spare_loss":train_spare_loss})
             train_loss = 0.0
             train_spare_loss=0.0
-        '''if accelerator.is_main_process:
+        if accelerator.is_main_process:
+            if e%25==0:
+                generator = torch.Generator(device=accelerator.device)
+                generator.manual_seed(seed)
+                path=f"vanilla_tmp.png"
+                validation_image_list=[]
+                _v_list=[]
+                for i in range(num_validation_images):
+                    val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
+                    _v_list.append(val_prompt)
+                    #print(f"validation vanilla_img_{i} {val_prompt} saved at {path}")
+                    added_cond_kwargs={}
+                    if len(token_dict)>0:
+                        img=call_vanilla_with_dict(pipeline,prompt=val_prompt,negative_prompt=negative_prompt,
+                                                num_inference_steps=num_inference_steps, 
+                                                generator=generator,safety_checker=None,token_dict=token_dict,
+                                                #timesteps=[k for k in token_dict.keys()]
+                                                ).images[0]
+                    else:
+                        val_prompt=val_prompt.format(sample_token)
+                        img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
+                    validation_image_list.append(img)
+                    try:
+                        img.save(path)
+                        tracker.log({f"vanilla_img_{i}": wandb.Image(path)})
+                    except:
+                        pass
+                metric_dict=get_metric_dict(_v_list, validation_image_list,images,None)
+                for metric,value in metric_dict.items():
+                    accelerator.log({
+                        f"{prior_class}_{metric}":value
+                    })
 
-            generator = torch.Generator(device=accelerator.device)
-            generator.manual_seed(seed)
-            path=f"vanilla_tmp.png"
-            for i in range(num_validation_images):
-                val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
-                print(f"validation vanilla_img_{i} {val_prompt} saved at {path}")
-                added_cond_kwargs={}
-                if len(token_dict)>0:
-                    img=call_vanilla_with_dict(pipeline,prompt=val_prompt,
-                                               num_inference_steps=num_inference_steps, 
-                                               generator=generator,safety_checker=None,token_dict=token_dict,
-                                               #timesteps=[k for k in token_dict.keys()]
-                                               ).images[0]
-                else:
-                    val_prompt=val_prompt.format(PLACEHOLDER)
-                    img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
-                img.save(path)
-                tracker.log({f"vanilla_img_{i}": wandb.Image(path)})'''
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
@@ -298,7 +313,8 @@ def loop_general(images: list,
                 max_grad_norm:float,
                 negative_token:bool,
                 spare_token:bool,
-                spare_lambda:float):
+                spare_lambda:float,
+                prior_class:str):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -306,6 +322,9 @@ def loop_general(images: list,
     sample_token=PLACEHOLDER
     if spare_token:
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+    negative_prompt=NEGATIVE
+    if negative_token:
+        negative_prompt+=","+NEGATIVE_PLACEHOLDER
     tracker=accelerator.get_tracker("wandb")
     for i in range(num_validation_images):
         wandb.define_metric(f"{training_method}_img_{i}",step_metric="custom_step")
@@ -362,7 +381,7 @@ def loop_general(images: list,
     print(f"total_batch_size {total_batch_size}")
     print(f"len(dataloader) {len(dataloader)}")
     print(f"epochs {epochs}")
-    for i in range(num_validation_images):
+    '''for i in range(num_validation_images):
         val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
         print(f"validation {training_method}_img_{i} {val_prompt} saved at {path}")
         added_cond_kwargs={}
@@ -378,7 +397,7 @@ def loop_general(images: list,
                          #generator=generator
                          )[0]
         img.save(path)
-        tracker.log({f"{training_method}_{i}": wandb.Image(path)})
+        tracker.log({f"{training_method}_{i}": wandb.Image(path)})'''
     trainable_models=[text_encoder]
     if train_adapter:
         trainable_models.append(adapter)
@@ -546,26 +565,41 @@ def loop_general(images: list,
             accelerator.log({"train_spare_loss":train_spare_loss})
             train_loss = 0.0
             train_spare_loss=0.0
-        '''if accelerator.is_main_process:
-            generator = torch.Generator()
-            generator.manual_seed(seed)
-            path=f"{training_method}_tmp.png"
-            for i in range(num_validation_images):
-                val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
-                print(f"validation {training_method}_img_{i} {val_prompt} saved at {path}")
-                added_cond_kwargs={}
-                if len(token_dict)>0:
-                    img=pipeline(val_prompt,
-                                            num_inference_steps=num_inference_steps, 
-                                            #generator=generator,
-                                            token_dict=token_dict)[0]
-                else:
-                    val_prompt=val_prompt.format(PLACEHOLDER)
-                    img=pipeline(val_prompt, num_inference_steps=num_inference_steps, 
-                                 #generator=generator
-                                 )[0]
-                img.save(path)
-                tracker.log({f"{training_method}_{i}": wandb.Image(path)})'''
+        if accelerator.is_main_process:
+            if e %25==0:
+                _v_list=[]
+                validation_image_list=[]
+                generator = torch.Generator()
+                generator.manual_seed(seed)
+                path=f"{training_method}_tmp.png"
+                for i in range(num_validation_images):
+                    val_prompt=validation_prompt_list[i %len(validation_prompt_list)]
+                    _v_list.append(val_prompt)
+                    print(f"validation {training_method}_img_{i} {val_prompt} saved at {path}")
+                    added_cond_kwargs={}
+                    if len(token_dict)>0:
+                        img=pipeline(val_prompt,
+                                                num_inference_steps=num_inference_steps, 
+                                                negative_prompts=negative_prompt,
+                                                generator=generator,
+                                                token_dict=token_dict)[0]
+                    else:
+                        val_prompt=val_prompt.format(PLACEHOLDER)
+                        img=pipeline(val_prompt, num_inference_steps=num_inference_steps, 
+                                     negative_prompts=negative_prompt,
+                                    generator=generator
+                                    )[0]
+                    validation_prompt_list.append(img)
+                    try:
+                        img.save(path)
+                        tracker.log({f"{training_method}_{i}": wandb.Image(path)})
+                    except:
+                        pass
+                metric_dict=get_metric_dict(_v_list, validation_image_list,images,None)
+                for metric,value in metric_dict.items():
+                    accelerator.log({
+                        f"{prior_class}_{metric}":value
+                    })
         accelerator.free_memory()
         torch.cuda.empty_cache()
         gc.collect()
