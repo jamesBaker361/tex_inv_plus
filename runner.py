@@ -23,6 +23,20 @@ from datetime import datetime
 import time
 import gc
 import datetime
+from PIL import Image
+
+def expand2square(pil_img:Image, background_color:tuple)->Image:
+    width, height = pil_img.size
+    if width == height:
+        return pil_img
+    elif width > height:
+        result = Image.new(pil_img.mode, (width, width), background_color)
+        result.paste(pil_img, (0, (width - height) // 2))
+        return result
+    else:
+        result = Image.new(pil_img.mode, (height, height), background_color)
+        result.paste(pil_img, ((height - width) // 2, 0))
+        return result
 
 def clean_string(input_string):
     # Remove all numbers
@@ -181,6 +195,9 @@ def main(args):
         if j>=args.limit:
             break
         image_list=[row[f"image_{i}"] for i in range(3)]
+        if args.src_dataset=="jlbaker361/personalization_cartoon":
+            image_list=[img.convert("RGB") for img in image_list]
+        image_list=[expand2square(image, (0,0,0)) for image in image_list]
         label=row["label"]
         prior_class=clean_string(label)
         print(j,f"label: {label} prior_class: {prior_class}")
