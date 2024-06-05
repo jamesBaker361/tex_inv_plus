@@ -156,6 +156,21 @@ class T5UnetPipeline(PreparePipeline):
                 images.append(image)
         return images
     
+class TransformerPipeline(PreparePipeline):
+    def __init__(self,scheduler_type:str):
+        self.vae = AutoencoderKL.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="vae")
+        self.vis = Transformer2DModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="transformer")
+        scheduler={
+            "UniPCMultistepScheduler":UniPCMultistepScheduler,
+            "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
+            "DDPMScheduler":DDPMScheduler,
+            "DDIMScheduler":DDIMScheduler
+        }[scheduler_type]
+        self.scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
+        self.tokenizer=AutoTokenizer.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="tokenizer")
+        for model in [self.vae, self.vis,self.text_encoder,self.adapter]:
+            model.requires_grad_(False)
+    
 class T5TransformerPipeline(PreparePipeline):
     def __init__(self,scheduler_type="UniPCMultistepScheduler"):
         VIS_REPLACE_MODULES = {"Attention", "GEGLU"}

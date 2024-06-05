@@ -341,7 +341,8 @@ def train_and_evaluate_one_sample(
                 max_grad_norm,
                 negative_token,
                 spare_token,
-                spare_lambda)
+                spare_lambda,
+                prior_class)
     split_evaluation_image_list=[]
     split_metric_dict={}
     long_metric_dict={}

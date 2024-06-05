@@ -275,6 +275,8 @@ def loop_vanilla(images: list,
                         tracker.log({f"vanilla_img_{i}": wandb.Image(path)})
                     except:
                         pass
+                print('_v_list, validation_image_list,images')
+                print(_v_list, validation_image_list,images)
                 metric_dict=get_metric_dict(_v_list, validation_image_list,images,None)
                 for metric,value in metric_dict.items():
                     accelerator.log({
@@ -589,12 +591,14 @@ def loop_general(images: list,
                                      negative_prompts=negative_prompt,
                                     generator=generator
                                     )[0]
-                    validation_prompt_list.append(img)
+                    validation_image_list.append(img)
                     try:
                         img.save(path)
                         tracker.log({f"{training_method}_{i}": wandb.Image(path)})
                     except:
                         pass
+                print('_v_list, validation_image_list,images')
+                print(_v_list, validation_image_list,images)
                 metric_dict=get_metric_dict(_v_list, validation_image_list,images,None)
                 for metric,value in metric_dict.items():
                     accelerator.log({
