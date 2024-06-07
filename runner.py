@@ -294,30 +294,50 @@ def main(args):
             os.makedirs(f"{args.image_dir}/{label}/{args.training_method}/",exist_ok=True)
             path=f"{args.image_dir}/{label}/{args.training_method}/{i}.png"
             image.save(path)
-            accelerator.log({
-                f"{label}/{args.training_method}_{i}":wandb.Image(path)
-            })
+            try:
+                accelerator.log({
+                    f"{label}/{args.training_method}_{i}":wandb.Image(path)
+                })
+            except:
+                accelerator.log({
+                    f"{label}/{args.training_method}_{i}":image
+                })
         for i,image in enumerate(long_evaluation_image_list):
             os.makedirs(f"{args.image_dir}/{label}_long/{args.training_method}/",exist_ok=True)
             path=f"{args.image_dir}/{label}_long/{args.training_method}/{i}.png"
             image.save(path)
-            accelerator.log({
-                f"{label}_long/{args.training_method}_{i}":wandb.Image(path)
-            })
+            try:
+                accelerator.log({
+                    f"{label}_long/{args.training_method}_{i}":wandb.Image(path)
+                })
+            except:
+                accelerator.log({
+                    f"{label}_long/{args.training_method}_{i}":image
+                })
         for i,image in enumerate(split_evaluation_image_list):
             os.makedirs(f"{args.image_dir}/{label}_split/{args.training_method}/",exist_ok=True)
             path=f"{args.image_dir}/{label}_split/{args.training_method}/{i}.png"
             image.save(path)
-            accelerator.log({
-                f"{label}_split/{args.training_method}_{i}":wandb.Image(path)
-            })
+            try:
+                accelerator.log({
+                    f"{label}_split/{args.training_method}_{i}":wandb.Image(path)
+                })
+            except:
+                accelerator.log({
+                    f"{label}_split/{args.training_method}_{i}":image
+                })
         for i,image in enumerate(split_long_evaluation_image_list):
             os.makedirs(f"{args.image_dir}/{label}_split_long/{args.training_method}/",exist_ok=True)
             path=f"{args.image_dir}/{label}_split_long/{args.training_method}/{i}.png"
             image.save(path)
-            accelerator.log({
-                f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
-            })
+            try:
+                accelerator.log({
+                    f"{label}_split_long/{args.training_method}_{i}":wandb.Image(path)
+                })
+            except:
+                accelerator.log({
+                    f"{label}_split_long/{args.training_method}_{i}":image
+                })
     print("after all samples")
     for metric,value_list in aggregate_dict.items():
         print(f"\t{metric} {np.mean(value_list)}")
