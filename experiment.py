@@ -27,6 +27,7 @@ from transformers import Blip2Processor, Blip2ForConditionalGeneration,pipeline,
 from PIL import Image
 from experiment_helpers.measuring import get_metric_dict
 from experiment_helpers.static_globals import *
+from better_vanilla_pipeline import VanillaPipeline
 
 
 
@@ -134,7 +135,9 @@ def train_and_evaluate_one_sample_vanilla(
                 spare_token:bool,
                 spare_lambda:float
 ):
-    pipeline=StableDiffusionPipeline.from_pretrained(pretrained_vanilla)
+    pipeline=VanillaPipeline.from_pretrained(pretrained_vanilla)
+    img=pipeline("test image",num_inference_steps=2)
+    pipeline.safety_checker=None
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
     unet=pipeline.unet
