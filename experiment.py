@@ -136,8 +136,6 @@ def train_and_evaluate_one_sample_vanilla(
                 spare_lambda:float
 ):
     pipeline=VanillaPipeline.from_pretrained(pretrained_vanilla)
-    img=pipeline("test image",num_inference_steps=2)
-    pipeline.safety_checker=None
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
     unet=pipeline.unet
