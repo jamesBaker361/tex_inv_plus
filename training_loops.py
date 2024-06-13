@@ -268,6 +268,8 @@ def loop_vanilla(images: list,
                                                 ).images[0]
                     else:
                         val_prompt=val_prompt.format(sample_token)
+                        pipeline.vae=pipeline.vae.to(device)
+                        pipeline.text_encoder=pipeline.text_encoder.to(device)
                         img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
                     validation_image_list.append(img)
                     try:
