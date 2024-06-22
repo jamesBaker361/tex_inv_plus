@@ -49,7 +49,7 @@ parser=argparse.ArgumentParser()
 
 parser.add_argument("--training_method",type=str,default="vanilla")
 parser.add_argument("--epochs",type=int,default=10)
-parser.add_argument("--pretrained_vanilla",type=str,default="stabilityai/stable-diffusion-2-1")
+parser.add_argument("--pretrained_vanilla",type=str,default="CompVis/stable-diffusion-v1-4")
 parser.add_argument("--mixed_precision",type=str,default="fp16",help="one of ‘no’,‘fp16’,‘bf16 or ‘fp8’.")
 parser.add_argument("--num_inference_steps",type=int,default=30)
 parser.add_argument("--multi_token", action='store_true')
