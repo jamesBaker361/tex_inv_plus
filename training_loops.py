@@ -270,7 +270,15 @@ def loop_vanilla(images: list,
                         val_prompt=val_prompt.format(sample_token)
                         pipeline.vae=pipeline.vae.to(device)
                         pipeline.text_encoder=pipeline.text_encoder.to(device)
-                        img=pipeline(val_prompt, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
+                        input_ids=tokenizer(
+                            text,
+                            padding="max_length",
+                            truncation=True,
+                            max_length=tokenizer.model_max_length,
+                            return_tensors="pt",
+                        ).input_ids.to(device=device)
+                        prompt_embeds=text_encoder(input_ids)[0]
+                        img=pipeline(prompt_embeds=prompt_embeds, num_inference_steps=num_inference_steps, generator=generator,safety_checker=None).images[0]
                     validation_image_list.append(img)
                     try:
                         img.save(path)
