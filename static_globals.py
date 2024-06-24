@@ -12,6 +12,7 @@ VANILLA="vanilla"
 T5_UNET="t5_unet"
 T5_TRANSFORMER="t5_transformer"
 LLAMA_UNET="llama_unet"
+PIXART="pixart"
 
 #token strategy
 DEFAULT="default"
