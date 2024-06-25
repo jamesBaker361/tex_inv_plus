@@ -352,9 +352,12 @@ def loop_general(images: list,
     vae=pipeline.vae
     scheduler=pipeline.scheduler
     vis=pipeline.vis
-    adapter=pipeline.adapter
-    adapter.requires_grad_(train_adapter)
-    trainable_params=[p for p in text_encoder.get_input_embeddings().parameters()]+[p for p in adapter.parameters() if p.requires_grad]
+    
+    trainable_params=[p for p in text_encoder.get_input_embeddings().parameters()]
+    if training_method!=PIXART:
+        adapter=pipeline.adapter
+        adapter.requires_grad_(train_adapter)
+        trainable_params+=[p for p in adapter.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(
         trainable_params,
         lr=lr,
