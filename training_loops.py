@@ -539,7 +539,7 @@ def loop_general(images: list,
                     else:
                         negative_model_pred = vis(noisy_latents, timestep=timesteps, encoder_hidden_states=negative_encoder_hidden_states).sample
                     
-                    model_pred=negative_model_pred* 5.0*(model_pred-negative_model_pred)
+                    model_pred=negative_model_pred+ 5.0*(model_pred-negative_model_pred)
 
                 loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")  
                 if spare_token:
