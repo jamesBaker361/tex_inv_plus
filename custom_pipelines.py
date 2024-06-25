@@ -169,7 +169,7 @@ class PixArtTransformerPipeline(PreparePipeline):
         self.scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
         self.tokenizer=AutoTokenizer.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="tokenizer")
         self.text_encoder=T5EncoderModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="text_encoder")
-        for model in [self.vae, self.vis,self.text_encoder,self.adapter]:
+        for model in [self.vae, self.vis,self.text_encoder]:
             model.requires_grad_(False)
     
 class T5TransformerPipeline(PreparePipeline):
