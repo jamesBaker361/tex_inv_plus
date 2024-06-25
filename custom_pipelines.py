@@ -156,7 +156,7 @@ class T5UnetPipeline(PreparePipeline):
                 images.append(image)
         return images
     
-class TransformerPipeline(PreparePipeline):
+class PixArtTransformerPipeline(PreparePipeline):
     def __init__(self,scheduler_type:str):
         self.vae = AutoencoderKL.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="vae")
         self.vis = Transformer2DModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="transformer")
