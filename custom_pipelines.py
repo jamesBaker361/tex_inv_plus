@@ -32,7 +32,10 @@ class PreparePipeline:
         self.vae.to(accelerator.device)
         self.vis.to(accelerator.device)
         self.text_encoder.to(accelerator.device)
-        self.adapter.to(accelerator.device)
+        try:
+            self.adapter.to(accelerator.device)
+        except AttributeError:
+            pass
 
 
 class T5UnetPipeline(PreparePipeline):
