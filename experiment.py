@@ -22,7 +22,7 @@ import numpy as np
 from numpy.linalg import norm
 import gc
 from aesthetic_reward import get_aesthetic_scorer
-from custom_pipelines import T5UnetPipeline,T5TransformerPipeline,LlamaUnetPipeline
+from custom_pipelines import T5UnetPipeline,T5TransformerPipeline,LlamaUnetPipeline,PixArtTransformerPipeline
 from transformers import Blip2Processor, Blip2ForConditionalGeneration,pipeline,Blip2Model
 from PIL import Image
 from experiment_helpers.measuring import get_metric_dict
@@ -299,14 +299,7 @@ def train_and_evaluate_one_sample(
                                     "bf16":torch.bfloat16}[accelerator.mixed_precision],
                                     scheduler_type=scheduler_type)
     elif training_method==PIXART:
-        pipeline=PixArtAlphaPipeline.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512")
-        scheduler={
-            "UniPCMultistepScheduler":UniPCMultistepScheduler,
-            "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
-            "DDPMScheduler":DDPMScheduler,
-            "DDIMScheduler":DDIMScheduler
-        }[scheduler_type]
-        pipeline.scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
+        pipeline=PixArtTransformerPipeline(scheduler_type=scheduler_type)
     #first_image=pipeline("thing")[0]
     #first_image.save(f"{training_method}_first.png")
     scheduler=pipeline.scheduler
