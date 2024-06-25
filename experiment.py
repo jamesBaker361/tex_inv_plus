@@ -135,7 +135,7 @@ def train_and_evaluate_one_sample_vanilla(
                 spare_token:bool,
                 spare_lambda:float
 ):
-    pipeline=VanillaPipeline.from_pretrained(pretrained_vanilla)
+    pipeline=VanillaPipeline.from_pretrained(pretrained_vanilla,safety_checker=None)
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
     unet=pipeline.unet
