@@ -1,4 +1,4 @@
-from diffusers import StableDiffusionPipeline, UniPCMultistepScheduler,DPMSolverMultistepScheduler,DDPMScheduler,DDIMScheduler
+from diffusers import PixArtAlphaPipeline, UniPCMultistepScheduler,DPMSolverMultistepScheduler,DDPMScheduler,DDIMScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import retrieve_timesteps, rescale_noise_cfg
 from accelerate import Accelerator
 from static_globals import *
@@ -298,6 +298,15 @@ def train_and_evaluate_one_sample(
                                     "fp16":torch.float16,
                                     "bf16":torch.bfloat16}[accelerator.mixed_precision],
                                     scheduler_type=scheduler_type)
+    elif training_method==PIXART:
+        pipeline=PixArtAlphaPipeline.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512")
+        scheduler={
+            "UniPCMultistepScheduler":UniPCMultistepScheduler,
+            "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
+            "DDPMScheduler":DDPMScheduler,
+            "DDIMScheduler":DDIMScheduler
+        }[scheduler_type]
+        pipeline.scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
     #first_image=pipeline("thing")[0]
     #first_image.save(f"{training_method}_first.png")
     scheduler=pipeline.scheduler
