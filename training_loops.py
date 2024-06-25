@@ -564,7 +564,9 @@ def loop_general(images: list,
 
 
                 if accelerator.sync_gradients:
-                    params_to_clip =[p for p in text_encoder.parameters()]+[p for p in adapter.parameters()]
+                    params_to_clip =[p for p in text_encoder.parameters()]
+                    if training_method!=PIXART:
+                        params_to_clip+=[p for p in adapter.parameters()]
                     accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
