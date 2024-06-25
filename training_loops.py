@@ -342,7 +342,7 @@ def loop_general(images: list,
         wandb.define_metric(f"{training_method}_img_{i}",step_metric="custom_step")
     if training_method==T5_UNET or training_method==LLAMA_UNET:
         max_length=77
-    elif training_method==T5_TRANSFORMER:
+    elif training_method==T5_TRANSFORMER or PIXART:
         max_length=120
     pipeline.prepare(accelerator)
     #fourth_image=pipeline("thing")[0]
