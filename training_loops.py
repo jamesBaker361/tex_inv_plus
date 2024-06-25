@@ -465,7 +465,7 @@ def loop_general(images: list,
                         return_tensors="pt", 
                         truncation=True,
                     ).input_ids.to(device)
-                elif training_method==T5_TRANSFORMER:
+                elif training_method==T5_TRANSFORMER or training_method==PIXART:
                     text_input = tokenizer(
                         text, 
                         padding="max_length", 
@@ -484,8 +484,11 @@ def loop_general(images: list,
                 elif training_method==LLAMA_UNET:
                     encoder_hidden_states_pre = text_encoder(text_input, output_hidden_states=True).hidden_states[-1]
                     encoder_hidden_states = adapter(encoder_hidden_states_pre).sample
-
-                if training_method==T5_TRANSFORMER:
+                elif training_method==PIXART:
+                    prompt_attention_mask = text_input.attention_mask
+                    encoder_hidden_states = text_encoder(text_input.input_ids, attention_mask=prompt_attention_mask)[0]
+                
+                if training_method==T5_TRANSFORMER or training_method==PIXART:
                     model_pred=vis(
                     noisy_latents, 
                     encoder_hidden_states=encoder_hidden_states,
