@@ -33,6 +33,7 @@ class PreparePipeline:
         self.vae.to(accelerator.device)
         self.vis.to(accelerator.device)
         self.text_encoder.to(accelerator.device)
+        self._execution_device=accelerator.device
         try:
             self.adapter.to(accelerator.device)
         except AttributeError:
@@ -176,6 +177,7 @@ class PixArtTransformerPipeline(PreparePipeline,PixArtAlphaPipeline):
         self.text_encoder=T5EncoderModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="text_encoder")
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
         self.image_processor = PixArtImageProcessor(vae_scale_factor=self.vae_scale_factor)
+        self._execution_device="cpu"
         for model in [self.vae, self.vis,self.text_encoder]:
             model.requires_grad_(False)
     
