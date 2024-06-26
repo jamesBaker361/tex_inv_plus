@@ -33,7 +33,6 @@ class PreparePipeline:
         self.vae.to(accelerator.device)
         self.vis.to(accelerator.device)
         self.text_encoder.to(accelerator.device)
-        self._execution_device=accelerator.device
         try:
             self.adapter.to(accelerator.device)
         except AttributeError:
@@ -163,22 +162,32 @@ class T5UnetPipeline(PreparePipeline):
     
 class PixArtTransformerPipeline(PreparePipeline,PixArtAlphaPipeline):
     def __init__(self,scheduler_type:str):
-        self.vae = AutoencoderKL.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="vae")
+        vae = AutoencoderKL.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="vae")
         self.vis = Transformer2DModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="transformer")
-        self.transformer=self.vis
         scheduler={
             "UniPCMultistepScheduler":UniPCMultistepScheduler,
             "DPMSolverMultistepScheduler":DPMSolverMultistepScheduler,
             "DDPMScheduler":DDPMScheduler,
             "DDIMScheduler":DDIMScheduler
         }[scheduler_type]
-        self.scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
-        self.tokenizer=AutoTokenizer.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="tokenizer")
-        self.text_encoder=T5EncoderModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="text_encoder")
-        self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
-        self.image_processor = PixArtImageProcessor(vae_scale_factor=self.vae_scale_factor)
-        for model in [self.vae, self.vis,self.text_encoder]:
+        scheduler = scheduler.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="scheduler")
+        tokenizer=AutoTokenizer.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="tokenizer")
+        text_encoder=T5EncoderModel.from_pretrained("PixArt-alpha/PixArt-XL-2-512x512", subfolder="text_encoder")
+        for model in [vae, self.vis,text_encoder]:
             model.requires_grad_(False)
+        super().__init__(
+            tokenizer=tokenizer,text_encoder=text_encoder,transformer=self.vis, scheduler=scheduler,vae=vae
+        )
+        self.register_modules(
+            tokenizer=tokenizer, text_encoder=text_encoder, vae=vae, transformer=self.vis, scheduler=scheduler
+        )
+
+    def __call__(self,*args,**kwargs):
+        return super().__call__(*args,**kwargs).images
+
+    def _get_signature_keys(self,obj):
+        return set(['tokenizer', 'text_encoder', 'vae', 'transformer', 'scheduler']),set()
+
 
     
 class T5TransformerPipeline(PreparePipeline):
