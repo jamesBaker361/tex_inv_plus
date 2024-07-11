@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import torch
 from gpu import print_details
 
+@torch.no_grad()
 def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
         prompt: str = None,
         height: Optional[int] = None,
@@ -77,7 +78,7 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
         pipeline.cross_attention_kwargs.get("scale", None) if pipeline.cross_attention_kwargs is not None else None
     )
     print("call vanilla line 79")
-    print_details()
+    #print_details()
     prompt_dict={}
     negative_input_ids=pipeline.tokenizer(
                     negative_prompt,
@@ -115,7 +116,7 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
     # Here we concatenate the unconditional and text embeddings into a single batch
     # to avoid doing two forward passes
     print("call vanilla line 117")
-    print_details()
+    #print_details()
     if ip_adapter_image is not None or ip_adapter_image_embeds is not None:
         image_embeds = pipeline.prepare_ip_adapter_image_embeds(
             ip_adapter_image,
