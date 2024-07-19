@@ -83,6 +83,9 @@ parser.add_argument("--negative_token",action="store_true")
 parser.add_argument("--spare_token",action="store_true")
 parser.add_argument("--spare_lambda",type=float,default=0.01)
 parser.add_argument("--project_name",type=str,default="text_inv")
+parser.add_argument("--use_style",action="store_true")
+parser.add_argument("--multi_spare",action="store_true")
+parser.add_argument("--n_multi_spare",type=int,default=3)
 
 
 
@@ -118,7 +121,40 @@ def main(args):
     ]
 
     validation_prompt_list=[
-        "a photo of {}"
+        "a photo of {}",
+
+    ]
+
+    style_validation_prompt_list=[
+        "picture, {} style"
+    ]
+
+    style_prompt_list=[
+        "a picture in the style of {}",
+        "a cropped picture in the style of {}",
+        "the picture in the style of {}",
+        "a clean picture in the style of {}",
+        "a dirty picture in the style of {}",
+        "a dark picture in the style of {}",
+        "my picture in the style of {}",
+        "a cool picture in the style of {}",
+        "a close-up picture in the style of {}",
+        "a bright picture in the style of {}",
+        "art in the style of {}",
+        "cropped art in the style of {}",
+        "the art in the style of {}",
+        "clean art in the style of {}",
+        "dirty art in the style of {}",
+        "dark art in the style of {}",
+        "my art in the style of {}",
+        "cool art in the style of {}",
+        "close-up art in the style of {}",
+        "bright art in the style of {}",
+        "drawing, {} style",
+        "art, {} style",
+        "image, {} style",
+        "painting, {} style",
+        "rendition, {} style",
     ]
 
     evaluation_prompt_list=[
@@ -139,6 +175,27 @@ def main(args):
         "a photo of  {} playing with a ball",
         "a photo of  {} as a police officer"
     ]
+
+    style_evaluation_prompt_list=[
+        "the beach in the style of {}",
+        "the jungle in the style of {}",
+        "the snow in the style of {}",
+        "the street in the style of {}",
+        "a person with a city in the background in the style of {}",
+        "a person with a mountain in the background in the style of {}",
+        "the Eiffel Tower in the style of {}",
+        "the Statue of Liberty in the style of {}",
+        "the Sydney Opera House in the style of {}",
+        "person floating on top of water in the style of {}",
+        "a burger in the style of {}",
+        "a beer in the style of {}",
+        "person wearing a blue hat in the style of {}",
+        "person wearing sunglasses in the style of {}",
+        "person playing with a ball in the style of {}",
+        "a police officer in the style of {}"
+    ]
+
+    evaluation_prompt_list
 
     long_evaluation_prompt_list = [
         "A photo of {} in a bustling commercial kitchen, surrounded by stainless steel countertops and filled with the aroma of sizzling spices:",
@@ -168,6 +225,11 @@ def main(args):
     args.lr = (
             args.lr * args.gradient_accumulation_steps * args.batch_size * accelerator.num_processes
         )
+    
+    if args.use_style:
+        prompt_list=style_prompt_list
+        evaluation_prompt_list=style_evaluation_prompt_list
+        validation_prompt_list=style_validation_prompt_list
     accelerator.init_trackers(project_name=args.project_name, config=vars(args))
     if args.testing:
         #prompt_list= prompt_list[:2]
@@ -228,7 +290,9 @@ def main(args):
                 long_evaluation_prompt_list,
                 args.negative_token,
                 args.spare_token,
-                args.spare_lambda
+                args.spare_lambda,
+                args.multi_spare,
+                args.n_multi_spare
             )
 
         else:
@@ -259,7 +323,9 @@ def main(args):
                 long_evaluation_prompt_list,
                 args.negative_token,
                 args.spare_token,
-                args.spare_lambda
+                args.spare_lambda,
+                args.multi_spare,
+                args.n_multi_spare
              )
         torch.cuda.empty_cache()
         accelerator.free_memory()

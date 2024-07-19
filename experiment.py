@@ -133,7 +133,9 @@ def train_and_evaluate_one_sample_vanilla(
                 long_evaluation_prompt_list:list,
                 negative_token:bool,
                 spare_token:bool,
-                spare_lambda:float
+                spare_lambda:float,
+                multi_spare: bool,
+                n_multi_spare:int
 ):
     pipeline=VanillaPipeline.from_pretrained(pretrained_vanilla,safety_checker=None)
     text_encoder=pipeline.text_encoder
@@ -286,7 +288,9 @@ def train_and_evaluate_one_sample(
                 long_evaluation_prompt_list:list,
                 negative_token:bool,
                 spare_token:bool,
-                spare_lambda:float):
+                spare_lambda:float,
+                multi_spare: bool,
+                n_multi_spare:int):
     if training_method==T5_UNET:
         pipeline=T5UnetPipeline(scheduler_type=scheduler_type)
     elif training_method==T5_TRANSFORMER:
@@ -379,6 +383,9 @@ def train_and_evaluate_one_sample(
                     num_inference_steps=num_inference_steps,
                     negative_prompts=negative_prompt,token_dict=token_dict)[0] for evaluation_prompt in evaluation_prompt_list
         ]
+    print('evaluation_prompt_list',evaluation_prompt_list)
+    print('evaluation_image_list',evaluation_image_list)
+    print('image_list',image_list)
     metric_dict=get_metric_dict(evaluation_prompt_list, evaluation_image_list, image_list)
     if len(long_evaluation_prompt_list)>0:
         if token_strategy==DEFAULT:
