@@ -160,6 +160,18 @@ def train_and_evaluate_one_sample_vanilla(
         tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,initializer_token,-1.0)
     if spare_token:
         tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder,initializer_token)
+    spare_list=[]
+    if multi_spare:
+        token_set=set()
+        for _ in range(n_multi_spare):
+            new_token=generate_random_string()
+            while is_real_word(new_token) or new_token in token_set:
+                new_token=generate_random_string()
+            token_set.add(new_token)
+            #print(t)
+            #token_dict[t]="<{}>".format(new_token)
+            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder,initializer_token)
+        spare_list=list(token_set)
     print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
@@ -183,7 +195,9 @@ def train_and_evaluate_one_sample_vanilla(
                 max_grad_norm,
                 negative_token,
                 spare_token,
-                spare_lambda
+                spare_lambda,
+                multi_spare,
+                spare_list
     )
     split_evaluation_image_list=[]
     split_metric_dict={}
@@ -198,6 +212,8 @@ def train_and_evaluate_one_sample_vanilla(
         negative_prompt+=","+NEGATIVE_PLACEHOLDER
     if spare_token:
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+    if multi_spare:
+        sample_token=PLACEHOLDER+","+",".join(spare_list)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(sample_token),
@@ -310,9 +326,7 @@ def train_and_evaluate_one_sample(
     text_encoder=pipeline.text_encoder
     tokenizer=pipeline.tokenizer
 
-    sample_token=PLACEHOLDER
-    if spare_token:
-        sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+    
     initializer_token=prior_class.split(" ")[-1]
     timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, accelerator.device, None)
     print("len tokenizer", len(tokenizer))
@@ -321,6 +335,18 @@ def train_and_evaluate_one_sample(
         tokenizer,text_encoder=prepare_textual_inversion(NEGATIVE_PLACEHOLDER,tokenizer,text_encoder,initializer_token,-1.0)
     if spare_token:
         tokenizer,text_encoder=prepare_textual_inversion(SPARE_PLACEHOLDER,tokenizer,text_encoder,initializer_token)
+    spare_list=[]
+    if multi_spare:
+        token_set=set()
+        for _ in range(n_multi_spare):
+            new_token=generate_random_string()
+            while is_real_word(new_token) or new_token in token_set:
+                new_token=generate_random_string()
+            token_set.add(new_token)
+            #print(t)
+            #token_dict[t]="<{}>".format(new_token)
+            tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder,initializer_token)
+        spare_list=list(token_set)
     print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]
@@ -349,13 +375,20 @@ def train_and_evaluate_one_sample(
                 negative_token,
                 spare_token,
                 spare_lambda,
-                prior_class)
+                prior_class,
+                multi_spare,
+                spare_list)
     split_evaluation_image_list=[]
     split_metric_dict={}
     long_metric_dict={}
     split_long_metric_dict={}
     long_evaluation_image_list=[]
     split_long_evaluation_image_list=[]
+    sample_token=PLACEHOLDER
+    if spare_token:
+        sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
+    if multi_spare:
+        sample_token=PLACEHOLDER+","+",".join(spare_list)
     negative_prompt=NEGATIVE
     if negative_token:
         negative_prompt+=","+NEGATIVE_PLACEHOLDER

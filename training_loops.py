@@ -38,7 +38,9 @@ def loop_vanilla(images: list,
                 max_grad_norm:float,
                 negative_token:bool,
                 spare_token:bool,
-                spare_lambda:float
+                spare_lambda:float,
+                multi_spare:bool,
+                spare_list:list
                )->StableDiffusionPipeline:
     '''
     anilla normal textual inversion training
@@ -112,6 +114,8 @@ def loop_vanilla(images: list,
     negative_prompt=NEGATIVE
     if negative_token:
         negative_prompt+=","+NEGATIVE_PLACEHOLDER
+    if multi_spare:
+        sample_token=PLACEHOLDER+","+",".join(spare_list)
 
     if len(token_dict)==0:
         placeholder_id=tokenizer.encode(PLACEHOLDER, add_special_tokens=False)[0]
@@ -123,6 +127,10 @@ def loop_vanilla(images: list,
     if spare_token:
         spare_id=tokenizer.encode(SPARE_PLACEHOLDER,add_special_tokens=False)[0]
         token_ids.append(spare_id)
+    if multi_spare:
+        for spare in spare_list:
+            spare_id=tokenizer.encode(spare,add_special_tokens=False)[0]
+            token_ids.append(spare_id)
     print("token_ids",token_ids)
     
     for e in range(start_epoch, epochs):
@@ -152,8 +160,9 @@ def loop_vanilla(images: list,
                 timesteps = timesteps.long()
                 text_list=sample(text_prompt_list,bsz)
                 if len(token_dict)>0:
+                    text=[]
                     for count,time_key in enumerate(timesteps.long().detach().tolist()):
-                        text[count]=text_list[count].format(token_dict[time_key])
+                        text.append(text_list[count].format(token_dict[time_key]))
                 else:
                     text=[t.format(sample_token) for t in text_list]
                 #print('loop vanilal text',text)
@@ -221,6 +230,20 @@ def loop_vanilla(images: list,
                     train_spare_loss+=avg_spare_loss.item()
 
                     loss=loss+spare_loss
+                if multi_spare:
+                    spare_loss=0.0
+                    for i,t_id in enumerate(token_ids):
+                        first_embedding=text_encoder.get_input_embeddings()(torch.tensor(t_id).to(device))
+                        for t_id_2 in token_ids[i+1:]:
+                            second_embedding=text_encoder.get_input_embeddings()(torch.tensor(t_id_2).to(device))
+                            spare_loss+=cos(first_embedding,second_embedding)**2
+                    spare_loss=spare_lambda*spare_loss
+                    avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
+                    train_spare_loss+=avg_spare_loss.item()
+
+                    loss=loss+spare_loss
+
+
 
                 avg_loss = accelerator.gather(loss.repeat(batch_size)).mean()
                 train_loss += avg_loss.item()
@@ -326,7 +349,9 @@ def loop_general(images: list,
                 negative_token:bool,
                 spare_token:bool,
                 spare_lambda:float,
-                prior_class:str):
+                prior_class:str,
+                multi_spare:bool,
+                spare_list:list):
     print(f"begin training method  {training_method} on device {accelerator.device}")
     #third_image=pipeline("thing")[0]
     #third_image.save(f"{training_method}_third.png")
@@ -337,6 +362,8 @@ def loop_general(images: list,
     negative_prompt=NEGATIVE
     if negative_token:
         negative_prompt+=","+NEGATIVE_PLACEHOLDER
+    if multi_spare:
+        sample_token=PLACEHOLDER+","+",".join(spare_list)
     tracker=accelerator.get_tracker("wandb")
     for i in range(num_validation_images):
         wandb.define_metric(f"{training_method}_img_{i}",step_metric="custom_step")
@@ -428,6 +455,10 @@ def loop_general(images: list,
     if spare_token:
         spare_id=tokenizer.encode(SPARE_PLACEHOLDER,add_special_tokens=False)[0]
         token_ids.append(spare_id)
+    if multi_spare:
+        for spare in spare_list:
+            spare_id=tokenizer.encode(spare,add_special_tokens=False)[0]
+            token_ids.append(spare_id)
     print("token_ids",token_ids)
     for e in range(start_epoch, epochs):
         train_loss = 0.0
@@ -455,8 +486,9 @@ def loop_general(images: list,
                 noisy_latents = scheduler.add_noise(latents, noise, timesteps)
                 text_list=sample(text_prompt_list,bsz)
                 if len(token_dict)>0:
+                    text=[]
                     for count,time_key in enumerate(timesteps.long().detach().tolist()):
-                        text[count]=text_list[count].format(token_dict[time_key])
+                        text.append(text_list[count].format(token_dict[time_key]))
                 else:
                     text=[t.format(sample_token) for t in text_list]
                 #print('loop general text',text)
@@ -555,6 +587,19 @@ def loop_general(images: list,
                     loss=loss+spare_loss
                     avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
                     train_spare_loss+=avg_spare_loss.item()
+                
+                if multi_spare:
+                    spare_loss=0.0
+                    for i,t_id in enumerate(token_ids):
+                        first_embedding=text_encoder.get_input_embeddings()(torch.tensor(t_id).to(device))
+                        for t_id_2 in token_ids[i+1:]:
+                            second_embedding=text_encoder.get_input_embeddings()(torch.tensor(t_id_2).to(device))
+                            spare_loss+=cos(first_embedding,second_embedding)**2
+                    spare_loss=spare_lambda*spare_loss
+                    avg_spare_loss=accelerator.gather(spare_loss.repeat(batch_size)).mean()
+                    train_spare_loss+=avg_spare_loss.item()
+
+                    loss=loss+spare_loss
 
                           
                 accelerator.backward(loss)

@@ -170,12 +170,30 @@ def call_vanilla_with_dict(pipeline: StableDiffusionPipeline,
 
             # expand the latents if we are doing classifier free guidance
             latent_model_input = torch.cat([latents] * 2) if pipeline.do_classifier_free_guidance else latents
+            
             latent_model_input = pipeline.scheduler.scale_model_input(latent_model_input, t)
+            '''
+            for timestep_key,token in token_dict.items():
+            input_ids=pipeline.tokenizer(
+                    prompt.format(token),
+                    padding="max_length",
+                    truncation=True,
+                    max_length=pipeline.tokenizer.model_max_length,
+                    return_tensors="pt",
+                ).input_ids.to(device=pipeline.device)
+            prompt_embeds=pipeline.text_encoder(input_ids)[0]
+            if pipeline.do_classifier_free_guidance:
+                prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+            prompt_dict[timestep_key]=prompt_embeds
+            '''
+            timestep_key=t.long().detach().tolist()
+            #print(timestep_key)
+            #token=
             if prompt_dict is not None:
-                prompt_embeds=prompt_dict[t.long().detach().tolist()]
+                prompt_embeds=prompt_dict[timestep_key]
             # predict the noise residual
-            print("call vanilla line 176")
-            print_details()
+            #print("call vanilla line 176")
+            #print_details()
             noise_pred = pipeline.unet(
                 latent_model_input,
                 t,
