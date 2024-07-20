@@ -126,35 +126,29 @@ def main(args):
     ]
 
     style_validation_prompt_list=[
-        "picture, {} style"
+        "picture, art by {}"
     ]
 
     style_prompt_list=[
-        "a picture in the style of {}",
-        "a cropped picture in the style of {}",
-        "the picture in the style of {}",
-        "a clean picture in the style of {}",
-        "a dirty picture in the style of {}",
-        "a dark picture in the style of {}",
-        "my picture in the style of {}",
-        "a cool picture in the style of {}",
-        "a close-up picture in the style of {}",
-        "a bright picture in the style of {}",
-        "art in the style of {}",
-        "cropped art in the style of {}",
-        "the art in the style of {}",
-        "clean art in the style of {}",
-        "dirty art in the style of {}",
-        "dark art in the style of {}",
-        "my art in the style of {}",
-        "cool art in the style of {}",
-        "close-up art in the style of {}",
-        "bright art in the style of {}",
-        "drawing, {} style",
-        "art, {} style",
-        "image, {} style",
-        "painting, {} style",
-        "rendition, {} style",
+"a painting, art by {}",
+"a rendering, art by {}",
+"a cropped painting, art by {}",
+"the painting, art by {}",
+"a clean image, art by {}",
+"a dirty image, art by {}",
+"a dark image, art by {}",
+"an image, art by {}",
+"a cool picture, art by {}",
+"a close-up picture, art by {}",
+"a bright picture, art by {}",
+"a cropped picture, art by {}",
+"a good painting, art by {}",
+"a close-up painting, art by {}",
+"a rendition, art by {}",
+"a nice painting, in the style of {}",
+"a small painting, in the style of {}",
+"a weird painting, in the style of {}",
+"a large painting, in the style of {}"
     ]
 
     evaluation_prompt_list=[
@@ -177,22 +171,22 @@ def main(args):
     ]
 
     style_evaluation_prompt_list=[
-        "the beach in the style of {}",
-        "the jungle in the style of {}",
-        "the snow in the style of {}",
-        "the street in the style of {}",
-        "a person with a city in the background in the style of {}",
-        "a person with a mountain in the background in the style of {}",
-        "the Eiffel Tower in the style of {}",
-        "the Statue of Liberty in the style of {}",
-        "the Sydney Opera House in the style of {}",
-        "person floating on top of water in the style of {}",
-        "a burger in the style of {}",
-        "a beer in the style of {}",
-        "person wearing a blue hat in the style of {}",
-        "person wearing sunglasses in the style of {}",
-        "person playing with a ball in the style of {}",
-        "a police officer in the style of {}"
+        "the beach, art by {}",
+        "the jungle, art by {}",
+        "the snow, art by {}",
+        "the street, art by {}",
+        "a person with a city in the background, art by {}",
+        "a person with a mountain in the background, art by {}",
+        "the Eiffel Tower, art by {}",
+        "the Statue of Liberty, art by {}",
+        "the Sydney Opera House, art by {}",
+        "person floating on top of water, art by {}",
+        "eating a burger, art by {}",
+        "drinking a beer, art by {}",
+        "wearing a blue hat, art by {}",
+        "wearing sunglasses, art by {}",
+        "playing with a ball, art by {}",
+        "a police officer, art by {}"
     ]
 
     evaluation_prompt_list
