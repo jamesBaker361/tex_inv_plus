@@ -256,6 +256,9 @@ def main(args):
         image_list=[expand2square(image, (0,0,0)) for image in image_list]
         label=row["label"]
         prior_class=clean_string(label)
+        if args.use_style:
+            label="art"
+            prior_class="art"
         print(j,f"label: {label} prior_class: {prior_class}")
         if args.training_method==VANILLA:
             pipeline,metric_dict,long_metric_dict,split_metric_dict,split_long_metric_dict,evaluation_image_list,long_evaluation_image_list,split_evaluation_image_list,split_long_evaluation_image_list=train_and_evaluate_one_sample_vanilla(
@@ -321,6 +324,7 @@ def main(args):
                 args.multi_spare,
                 args.n_multi_spare
              )
+        label=row["label"]
         torch.cuda.empty_cache()
         accelerator.free_memory()
         gc.collect()
