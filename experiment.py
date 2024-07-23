@@ -78,10 +78,11 @@ def prepare_from_token_strategy(timesteps: torch.Tensor,token_strategy:str,token
             #print(t)
             token_dict[t]="<{}>".format(new_token)
             tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder,initializer_token)
-    elif token_strategy==HALF or token_strategy==THIRD:
+    elif token_strategy==HALF or token_strategy==THIRD or token_strategy==TENS:
         n_tokens={
             HALF:2,
-            THIRD:3
+            THIRD:3,
+            TENS:10
         }[token_strategy]
         n_steps=len([t for t in timesteps.detach().tolist()])
         steps_per_token=n_steps//n_tokens
@@ -172,6 +173,7 @@ def train_and_evaluate_one_sample_vanilla(
             #token_dict[t]="<{}>".format(new_token)
             tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder,initializer_token)
         spare_list=list(token_set)
+        print(spare_list)
     print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     pipeline=loop_vanilla(
@@ -214,6 +216,7 @@ def train_and_evaluate_one_sample_vanilla(
         sample_token=PLACEHOLDER+","+SPARE_PLACEHOLDER
     if multi_spare:
         sample_token=PLACEHOLDER+","+",".join(spare_list)
+    print('sample_token', sample_token)
     if token_strategy==DEFAULT:
         evaluation_image_list=[
             pipeline(evaluation_prompt.format(sample_token),
@@ -347,6 +350,7 @@ def train_and_evaluate_one_sample(
             #token_dict[t]="<{}>".format(new_token)
             tokenizer,text_encoder=prepare_textual_inversion("<{}>".format(new_token), tokenizer, text_encoder,initializer_token)
         spare_list=list(token_set)
+        print(spare_list)
     print("len tokenizer" ,len(tokenizer))
     text_encoder.gradient_checkpointing_enable()
     #second_image=pipeline("thing")[0]
