@@ -41,6 +41,8 @@ parser.add_argument(
 )
 parser.add_argument("--num_inference_steps",type=int,default=50)
 parser.add_argument("--image_dir",type=str, default="/scratch/jlb638/fewshot")
+parser.add_argument("--start",type=int,default=0)
+parser.add_argument("--limit",type=int,default=30)
 
 prompt_list= [
     "a photo of a {}",
@@ -100,6 +102,11 @@ def main(args):
         metric:[] for metric in METRIC_LIST
     }
     for j,row in enumerate(dataset):
+        if j<args.start:
+            continue
+        if j>=args.limit:
+            break
+        
         label=clean_string(row[args.label_key])
         image_list=[row[f"image_{i}"] for i in range(3)]
         pipeline=StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
