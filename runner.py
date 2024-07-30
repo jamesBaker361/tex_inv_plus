@@ -86,6 +86,7 @@ parser.add_argument("--project_name",type=str,default="text_inv")
 parser.add_argument("--use_style",action="store_true")
 parser.add_argument("--multi_spare",action="store_true")
 parser.add_argument("--n_multi_spare",type=int,default=3)
+parser.add_argument("--n_src_image",type=int,default=3)
 
 
 
@@ -250,7 +251,7 @@ def main(args):
             continue
         if j>=args.limit:
             break
-        image_list=[row[f"image_{i}"] for i in range(3)]
+        image_list=[row[f"image_{i}"] for i in range(args.n_src_image)]
         if args.src_dataset=="jlbaker361/personalization_cartoon":
             image_list=[img.convert("RGB") for img in image_list]
         image_list=[expand2square(image, (0,0,0)) for image in image_list]

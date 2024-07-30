@@ -16,7 +16,7 @@ import numpy as np
 parser=argparse.ArgumentParser()
 
 parser.add_argument("--mixed_precision",type=str,default="no")
-parser.add_argument("--project_name",type=str,default="evaluation-creative")
+parser.add_argument("--project_name",type=str,default="fewshot")
 parser.add_argument("--epochs",type=int,default=10)
 parser.add_argument("--dataset",type=str,default="jlbaker361/personalization")
 parser.add_argument("--label_key",type=str,default="label")
@@ -36,7 +36,7 @@ parser.add_argument("--prior_loss_weight", type=float, default=1.0, help="The we
 parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
-        default=1,
+        default=16,
         help="Number of updates steps to accumulate before performing a backward/update pass.",
 )
 parser.add_argument("--num_inference_steps",type=int,default=50)
@@ -106,9 +106,9 @@ def main(args):
             continue
         if j>=args.limit:
             break
-        
+
         label=clean_string(row[args.label_key])
-        image_list=[row[f"image_{i}"] for i in range(3)]
+        image_list=[row[f"image_{i}"].resize((512,512)) for i in range(3)]
         pipeline=StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
         pipeline.to(accelerator.device)
         pipeline.vae,pipeline.text_encoder,pipeline.unet=accelerator.prepare(pipeline.vae,pipeline.text_encoder,pipeline.unet)
